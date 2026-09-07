@@ -8,9 +8,12 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
   const [loading, setLoading] = useState(false);
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
-  
-  // Verificamos si la huella ya fue configurada previamente
+
+  // REVISIÓN DE HUELLA
   const huellaActivada = localStorage.getItem('huellaActivada') === 'true';
+  const nombreGuardado = localStorage.getItem('kardex_cred_name');
+  // Si tiene huella y sabemos su nombre, activamos la vista especial de bienvenida
+  const [usarVistaHuella, setUsarVistaHuella] = useState(huellaActivada && nombreGuardado);
 
   useEffect(() => {
     if (mensaje.texto) {
@@ -25,20 +28,16 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
     setLoading(true);
 
     try {
-      // 1. Guardamos la decisión antes de iniciar sesión
       localStorage.setItem('recordarme', recordarme ? 'true' : 'false');
       
       if (recordarme) {
-        // Le dejamos una "nota" al Dashboard para que pregunte por la huella
         localStorage.setItem('quiereHuella', 'true');
-        // Guardamos las credenciales temporalmente para el futuro uso de huella
         localStorage.setItem('kardex_cred', btoa(`${email.toLowerCase().trim()}:${password}`));
       } else {
         sessionStorage.setItem('sesionActiva', 'true'); 
         localStorage.removeItem('quiereHuella');
       }
 
-      // 2. Iniciamos sesión. ¡App.jsx nos redireccionará automáticamente!
       const { error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase().trim(),
         password: password,
@@ -52,7 +51,6 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
     }
   };
 
-  // --- FUNCIÓN PARA INICIAR SESIÓN CON HUELLA ---
   const loginConHuella = async () => {
     try {
       const challenge = new Uint8Array(32);
@@ -61,12 +59,12 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
       await navigator.credentials.get({
         publicKey: {
           challenge,
+          rpId: window.location.hostname, // Busca la llave del servidor
           timeout: 60000,
-          userVerification: "required" // Obliga a pedir la huella/FaceID
+          userVerification: "required"
         }
       });
 
-      // Si la huella es correcta, leemos las credenciales guardadas y entramos
       const creds = localStorage.getItem('kardex_cred');
       if (creds) {
         setLoading(true);
@@ -75,6 +73,7 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
         if (error) throw error;
       } else {
         setMensaje({ tipo: 'error', texto: 'No se encontraron credenciales. Usa tu contraseña.' });
+        setUsarVistaHuella(false); // Volver al login normal
       }
     } catch (error) {
       setMensaje({ tipo: 'error', texto: 'Huella no reconocida o cancelada.' });
@@ -83,6 +82,56 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
     }
   };
 
+  // ==========================================
+  // VISTA ESPECIAL: BIENVENIDA CON HUELLA
+  // ==========================================
+  if (usarVistaHuella) {
+    return (
+      <>
+        {mensaje.texto && (
+          <div className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:w-80 z-50 px-5 py-4 rounded-xl border shadow-2xl transition-all duration-300 animate-fade-in ${
+            mensaje.tipo === 'error' ? 'bg-red-900/95 border-red-500/50 text-red-100' : 'bg-green-900/95 border-green-500/50 text-green-100'
+          }`}>
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <p className="text-sm font-medium">{mensaje.texto}</p>
+            </div>
+          </div>
+        )}
+        
+        <div className="w-full max-w-[380px] z-10 flex flex-col pt-2 animate-fade-in">
+          <div className="text-center mb-10">
+            <div className="w-20 h-20 mx-auto bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
+              <span className="text-3xl font-bold text-[#070b14]">
+                {nombreGuardado.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <h1 className="text-white text-3xl font-bold mb-2">¡Hola, {nombreGuardado}!</h1>
+            <p className="text-slate-400 text-sm px-4">Toca el botón para ingresar con tu huella dactilar.</p>
+          </div>
+
+          <button
+            onClick={loginConHuella}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 px-5 py-5 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl text-slate-900 font-bold text-base hover:opacity-90 transition-opacity shadow-lg shadow-blue-500/30 mb-6 disabled:opacity-50"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+            </svg>
+            {loading ? 'Verificando...' : 'Ingresar con Huella'}
+          </button>
+
+          <button onClick={() => setUsarVistaHuella(false)} className="text-slate-400 text-sm hover:text-white transition-colors text-center cursor-pointer">
+            Iniciar sesión con otra cuenta
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  // ==========================================
+  // VISTA NORMAL: CORREO Y CONTRASEÑA
+  // ==========================================
   return (
     <>
       {mensaje.texto && (
@@ -112,21 +161,6 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
           </div>
 
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            
-            {/* BOTÓN NEÓN DE HUELLA (Aparece solo si ya la activaste) */}
-            {huellaActivada && (
-              <button 
-                type="button" 
-                onClick={loginConHuella}
-                className="w-full flex items-center justify-center gap-3 px-5 py-4 bg-cyan-900/20 border border-cyan-500/30 hover:bg-cyan-900/40 rounded-2xl text-cyan-400 font-semibold text-sm transition-all shadow-inner mb-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
-                </svg>
-                Ingresar con Huella Dactilar
-              </button>
-            )}
-
             <input
               type="email"
               name="email"
