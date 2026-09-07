@@ -3,13 +3,12 @@ import { supabase } from '../services/supabaseClient.js';
 
 export default function Dashboard({ user }) {
   const [mostrarModalHuella, setMostrarModalHuella] = useState(false);
-  const [nombreDoctor, setNombreDoctor] = useState(user?.email);
+  const [nombreDoctor, setNombreDoctor] = useState(''); // Inicia vacío, ya no inicia con el correo
   const [tieneHuella, setTieneHuella] = useState(localStorage.getItem('huellaActivada') === 'true');
 
   useEffect(() => {
-    // Función centralizada para cargar datos ANTES de preguntar por la huella
     const inicializarDashboard = async () => {
-      let nombreCargado = user?.email;
+      let nombreCargado = 'Doctor';
       
       // 1. Buscamos el nombre del doctor primero
       if (user) {
@@ -20,11 +19,12 @@ export default function Dashboard({ user }) {
           
           if (tieneHuella) {
             localStorage.setItem('kardex_cred_name', nombreCargado);
+            localStorage.setItem('kardex_cred_email', user.email);
           }
         }
       }
 
-      // 2. UNA VEZ QUE TENEMOS EL NOMBRE, evaluamos si pide la huella
+      // 2. Evaluamos si pide la huella UNA VEZ CARGADO EL NOMBRE
       const quiereHuella = localStorage.getItem('quiereHuella') === 'true';
       if (quiereHuella && !tieneHuella && window.PublicKeyCredential) {
         const disponible = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -50,7 +50,7 @@ export default function Dashboard({ user }) {
         publicKey: {
           challenge,
           rp: { name: "Kardex Emergencia", id: window.location.hostname },
-          user: { id: userId, name: user?.email || 'doctor', displayName: nombreDoctor || 'Doctor' },
+          user: { id: userId, name: user?.email || 'doctor@kardex.com', displayName: nombreDoctor || 'Doctor' },
           pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
           authenticatorSelection: { 
             authenticatorAttachment: "platform", 
@@ -62,9 +62,10 @@ export default function Dashboard({ user }) {
         }
       });
 
+      // Éxito: Guardamos la huella, el NOMBRE y el CORREO
       localStorage.setItem('huellaActivada', 'true');
-      // Ahora guarda el nombre con 100% de seguridad
-      localStorage.setItem('kardex_cred_name', nombreDoctor || user?.email); 
+      localStorage.setItem('kardex_cred_name', nombreDoctor || 'Doctor'); 
+      localStorage.setItem('kardex_cred_email', user?.email || ''); 
       localStorage.removeItem('quiereHuella');
       setTieneHuella(true);
       setMostrarModalHuella(false);
@@ -108,11 +109,11 @@ export default function Dashboard({ user }) {
 
       <div className="z-10 bg-[#141824] border border-white/10 p-10 rounded-3xl shadow-2xl flex flex-col items-center max-w-md w-full text-center">
         <div className="w-20 h-20 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
-          <span className="text-3xl font-bold text-[#070b14]">{nombreDoctor?.charAt(0).toUpperCase()}</span>
+          <span className="text-3xl font-bold text-[#070b14]">{nombreDoctor ? nombreDoctor.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase()}</span>
         </div>
         
         <h1 className="text-3xl font-bold text-white mb-2">Panel de Control</h1>
-        <p className="text-slate-400 mb-8 text-sm">Bienvenido(a), <br/> <span className="text-cyan-400 font-medium text-lg">{nombreDoctor}</span></p>
+        <p className="text-slate-400 mb-8 text-sm">Bienvenido(a), <br/> <span className="text-cyan-400 font-medium text-lg">{nombreDoctor || user?.email}</span></p>
 
         {!tieneHuella && (
           <button onClick={() => setMostrarModalHuella(true)} className="w-full mb-3 py-4 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 rounded-2xl font-bold text-sm transition-all">

@@ -9,9 +9,10 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
-  // REVISIÓN DE HUELLA Y NOMBRE
+  // REVISIÓN DE HUELLA, NOMBRE Y CORREO
   const huellaActivada = localStorage.getItem('huellaActivada') === 'true';
   const nombreGuardado = localStorage.getItem('kardex_cred_name') || 'Doctor';
+  const emailGuardado = localStorage.getItem('kardex_cred_email') || '';
   const [usarVistaHuella, setUsarVistaHuella] = useState(huellaActivada);
 
   useEffect(() => {
@@ -83,12 +84,11 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
 
   // --- FUNCIÓN DESTRUCTIVA PARA CAMBIAR DE CUENTA ---
   const handleIngresarConOtraCuenta = () => {
-    // Borramos todo rastro del usuario anterior
     localStorage.removeItem('huellaActivada');
     localStorage.removeItem('kardex_cred_name');
+    localStorage.removeItem('kardex_cred_email');
     localStorage.removeItem('kardex_cred');
     localStorage.removeItem('quiereHuella');
-    // Mostramos el formulario clásico
     setUsarVistaHuella(false);
   };
 
@@ -110,13 +110,19 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
         )}
         
         <div className="w-full max-w-[380px] z-10 flex flex-col pt-2 animate-fade-in">
-          <div className="text-center mb-10">
-            <div className="w-20 h-20 mx-auto bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 mx-auto bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full flex items-center justify-center mb-5 shadow-lg shadow-blue-500/20">
               <span className="text-3xl font-bold text-[#070b14]">
                 {nombreGuardado.charAt(0).toUpperCase()}
               </span>
             </div>
-            <h1 className="text-white text-3xl font-bold mb-2">¡Hola, {nombreGuardado}!</h1>
+            
+            <h1 className="text-white text-3xl font-bold mb-1">¡Hola, {nombreGuardado}!</h1>
+            {/* AQUÍ SE MUESTRA EL CORREO EN PEQUEÑO DEBAJO DEL NOMBRE */}
+            {emailGuardado && (
+              <p className="text-cyan-400 text-sm mb-4 font-medium">{emailGuardado}</p>
+            )}
+            
             <p className="text-slate-400 text-sm px-4">Toca el botón para ingresar con tu huella dactilar.</p>
           </div>
 
@@ -131,7 +137,6 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
             {loading ? 'Verificando...' : 'Ingresar con Huella'}
           </button>
 
-          {/* ESTE BOTÓN AHORA DESTRUYE LA MEMORIA AL HACER CLIC */}
           <button onClick={handleIngresarConOtraCuenta} className="text-slate-400 text-sm hover:text-white transition-colors text-center cursor-pointer">
             Iniciar sesión con otra cuenta
           </button>
