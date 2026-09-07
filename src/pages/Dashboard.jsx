@@ -4,24 +4,26 @@ import { supabase } from '../services/supabaseClient.js';
 export default function Dashboard({ user }) {
   const [mostrarModalHuella, setMostrarModalHuella] = useState(false);
   const [nombreDoctor, setNombreDoctor] = useState(user?.email);
+  
+  // Nuevo estado para saber si ya tiene la huella activa y ocultar/mostrar el botón manual
+  const [tieneHuella, setTieneHuella] = useState(localStorage.getItem('huellaActivada') === 'true');
 
   useEffect(() => {
-    // 1. Buscamos el nombre real del doctor para usarlo en la pantalla de bienvenida
+    // 1. Buscamos el nombre real del doctor
     const cargarDatos = async () => {
       if (user) {
         const { data } = await supabase.from('doctores').select('nombres').eq('id', user.id).maybeSingle();
         if (data?.nombres) {
-          setNombreDoctor(data.nombres.split(' ')[0]); // Guardamos solo el primer nombre
+          setNombreDoctor(data.nombres.split(' ')[0]);
         }
       }
     };
     cargarDatos();
 
-    // 2. Revisamos si quiere registrar la huella
+    // 2. Revisamos si quiere registrar la huella automáticamente al entrar
     const quiereHuella = localStorage.getItem('quiereHuella') === 'true';
-    const huellaActivada = localStorage.getItem('huellaActivada') === 'true';
     
-    if (quiereHuella && !huellaActivada && window.PublicKeyCredential) {
+    if (quiereHuella && !tieneHuella && window.PublicKeyCredential) {
       window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
         .then(disponible => {
           if (disponible) {
@@ -31,7 +33,7 @@ export default function Dashboard({ user }) {
           }
         });
     }
-  }, [user]);
+  }, [user, tieneHuella]);
 
   const registrarHuella = async () => {
     try {
@@ -47,25 +49,27 @@ export default function Dashboard({ user }) {
             name: "Kardex Emergencia",
             id: window.location.hostname 
           },
-          user: { id: userId, name: user.email, displayName: nombreDoctor },
+          // Aseguramos que haya un nombre válido para mostrar en el teléfono
+          user: { id: userId, name: user?.email || 'doctor@kardex.com', displayName: nombreDoctor || 'Doctor' },
           pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
           authenticatorSelection: { 
             authenticatorAttachment: "platform", 
             userVerification: "required",
-            residentKey: "required", // Crea la Passkey real en Android/iOS
+            residentKey: "required", // Fuerza la Passkey
             requireResidentKey: true
           },
           timeout: 60000,
         }
       });
 
-      // Éxito: Guardamos la huella y el nombre
+      // Éxito: Guardamos todo
       localStorage.setItem('huellaActivada', 'true');
-      localStorage.setItem('kardex_cred_name', nombreDoctor); // Pasamos el nombre al Login.jsx
+      localStorage.setItem('kardex_cred_name', nombreDoctor || user?.email); 
       localStorage.removeItem('quiereHuella');
+      setTieneHuella(true); // Oculta el botón manual
       setMostrarModalHuella(false);
     } catch (error) {
-      console.log('Registro biométrico cancelado', error);
+      console.log('Registro biométrico cancelado o fallido', error);
       localStorage.removeItem('quiereHuella');
       setMostrarModalHuella(false);
     }
@@ -77,9 +81,13 @@ export default function Dashboard({ user }) {
   };
 
   const handleCerrarSesion = async () => {
-    // Al cerrar sesión, limpiamos el "Recordarme" pero NO borramos la huella, para que pueda usarla al volver a entrar
+    // IMPORTANTE: Al salir manualmente quitamos la huella para probar desde cero
+    // (En producción no harías esto, pero para probar nos viene genial)
     localStorage.removeItem('recordarme');
     localStorage.removeItem('quiereHuella');
+    localStorage.removeItem('huellaActivada'); 
+    localStorage.removeItem('kardex_cred_name');
+    localStorage.removeItem('kardex_cred');
     sessionStorage.removeItem('sesionActiva');
     await supabase.auth.signOut();
     window.location.reload();
@@ -126,6 +134,16 @@ export default function Dashboard({ user }) {
         <p className="text-slate-400 mb-8 text-sm">
           Bienvenido(a), <br/> <span className="text-cyan-400 font-medium text-lg">{nombreDoctor}</span>
         </p>
+
+        {/* BOTÓN MANUAL PARA ACTIVAR HUELLA (Si aún no la tiene) */}
+        {!tieneHuella && (
+          <button 
+            onClick={() => setMostrarModalHuella(true)} 
+            className="w-full mb-3 py-4 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 rounded-2xl font-bold text-sm transition-all"
+          >
+            Activar Ingreso con Huella
+          </button>
+        )}
 
         <button 
           onClick={handleCerrarSesion} 
