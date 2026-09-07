@@ -9,11 +9,10 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
-  // REVISIÓN DE HUELLA
+  // REVISIÓN DE HUELLA Y NOMBRE
   const huellaActivada = localStorage.getItem('huellaActivada') === 'true';
-  const nombreGuardado = localStorage.getItem('kardex_cred_name');
-  // Si tiene huella y sabemos su nombre, activamos la vista especial de bienvenida
-  const [usarVistaHuella, setUsarVistaHuella] = useState(huellaActivada && nombreGuardado);
+  const nombreGuardado = localStorage.getItem('kardex_cred_name') || 'Doctor';
+  const [usarVistaHuella, setUsarVistaHuella] = useState(huellaActivada);
 
   useEffect(() => {
     if (mensaje.texto) {
@@ -59,7 +58,7 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
       await navigator.credentials.get({
         publicKey: {
           challenge,
-          rpId: window.location.hostname, // Busca la llave del servidor
+          rpId: window.location.hostname, 
           timeout: 60000,
           userVerification: "required"
         }
@@ -72,8 +71,8 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
         const { error } = await supabase.auth.signInWithPassword({ email: savedEmail, password: savedPass });
         if (error) throw error;
       } else {
-        setMensaje({ tipo: 'error', texto: 'No se encontraron credenciales. Usa tu contraseña.' });
-        setUsarVistaHuella(false); // Volver al login normal
+        setMensaje({ tipo: 'error', texto: 'Credenciales expiradas. Inicia sesión con contraseña.' });
+        setUsarVistaHuella(false);
       }
     } catch (error) {
       setMensaje({ tipo: 'error', texto: 'Huella no reconocida o cancelada.' });
@@ -106,6 +105,7 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
                 {nombreGuardado.charAt(0).toUpperCase()}
               </span>
             </div>
+            {/* AQUÍ SE MUESTRA EL NOMBRE DINÁMICO */}
             <h1 className="text-white text-3xl font-bold mb-2">¡Hola, {nombreGuardado}!</h1>
             <p className="text-slate-400 text-sm px-4">Toca el botón para ingresar con tu huella dactilar.</p>
           </div>
@@ -121,6 +121,7 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
             {loading ? 'Verificando...' : 'Ingresar con Huella'}
           </button>
 
+          {/* ESTE BOTÓN PERMITE SALIR DE LA PANTALLA DE HUELLA */}
           <button onClick={() => setUsarVistaHuella(false)} className="text-slate-400 text-sm hover:text-white transition-colors text-center cursor-pointer">
             Iniciar sesión con otra cuenta
           </button>
@@ -147,7 +148,6 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
 
       <div className="w-full max-w-[380px] z-10 flex flex-col pt-2">
         <div className="animate-fade-in flex flex-col">
-          
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-3 mb-15">
               <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/20">
@@ -155,7 +155,6 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
               </div>
               <h2 className="text-3xl font-bold text-white tracking-wide">Kardex</h2>
             </div>
-            
             <h1 className="text-white text-3xl font-bold mb-2">Inicia sesión para continuar</h1>
             <p className="text-slate-400 text-sm px-4">Por favor ingresa tus datos para entrar.</p>
           </div>
@@ -192,7 +191,6 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
                   )}
                 </button>
               </div>
-              
               <div className="flex justify-end mt-1">
                 <button type="button" onClick={irARecuperar} className="text-slate-400 hover:text-white text-xs transition-colors cursor-pointer">
                   ¿Olvidaste tu contraseña?
@@ -223,15 +221,8 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
           </form>
 
           <div className="mt-8 flex flex-col items-center gap-6">
-            <p className="text-slate-400 text-sm">
-              ¿No tienes una cuenta?{' '}
-              <button onClick={irARegistro} className="text-white font-semibold hover:text-cyan-300 transition-colors">
-                Regístrate
-              </button>
-            </p>
-            <p className="text-slate-600 text-[10px] uppercase tracking-wider">
-              Términos de Servicio | Política de Privacidad
-            </p>
+            <p className="text-slate-400 text-sm">¿No tienes una cuenta? <button onClick={irARegistro} className="text-white font-semibold hover:text-cyan-300 transition-colors">Regístrate</button></p>
+            <p className="text-slate-600 text-[10px] uppercase tracking-wider">Términos de Servicio | Política de Privacidad</p>
           </div>
         </div>
       </div>
