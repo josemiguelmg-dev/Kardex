@@ -7,32 +7,36 @@ export default function Dashboard({ user }) {
   const [tieneHuella, setTieneHuella] = useState(localStorage.getItem('huellaActivada') === 'true');
 
   useEffect(() => {
-    const cargarDatos = async () => {
+    // Función centralizada para cargar datos ANTES de preguntar por la huella
+    const inicializarDashboard = async () => {
+      let nombreCargado = user?.email;
+      
+      // 1. Buscamos el nombre del doctor primero
       if (user) {
         const { data } = await supabase.from('doctores').select('nombres').eq('id', user.id).maybeSingle();
         if (data?.nombres) {
-          const primerNombre = data.nombres.split(' ')[0];
-          setNombreDoctor(primerNombre);
-          // Si ya tiene huella, actualizamos el nombre guardado por si lo cambió
+          nombreCargado = data.nombres.split(' ')[0];
+          setNombreDoctor(nombreCargado);
+          
           if (tieneHuella) {
-            localStorage.setItem('kardex_cred_name', primerNombre);
+            localStorage.setItem('kardex_cred_name', nombreCargado);
           }
         }
       }
-    };
-    cargarDatos();
 
-    const quiereHuella = localStorage.getItem('quiereHuella') === 'true';
-    if (quiereHuella && !tieneHuella && window.PublicKeyCredential) {
-      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-        .then(disponible => {
-          if (disponible) {
-            setMostrarModalHuella(true);
-          } else {
-            localStorage.removeItem('quiereHuella');
-          }
-        });
-    }
+      // 2. UNA VEZ QUE TENEMOS EL NOMBRE, evaluamos si pide la huella
+      const quiereHuella = localStorage.getItem('quiereHuella') === 'true';
+      if (quiereHuella && !tieneHuella && window.PublicKeyCredential) {
+        const disponible = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        if (disponible) {
+          setMostrarModalHuella(true);
+        } else {
+          localStorage.removeItem('quiereHuella');
+        }
+      }
+    };
+
+    inicializarDashboard();
   }, [user, tieneHuella]);
 
   const registrarHuella = async () => {
@@ -59,6 +63,7 @@ export default function Dashboard({ user }) {
       });
 
       localStorage.setItem('huellaActivada', 'true');
+      // Ahora guarda el nombre con 100% de seguridad
       localStorage.setItem('kardex_cred_name', nombreDoctor || user?.email); 
       localStorage.removeItem('quiereHuella');
       setTieneHuella(true);
@@ -76,7 +81,6 @@ export default function Dashboard({ user }) {
   };
 
   const handleCerrarSesion = async () => {
-    // AHORA SÍ: Solo cerramos sesión, pero conservamos la huella y el nombre
     sessionStorage.removeItem('sesionActiva');
     await supabase.auth.signOut();
     window.location.reload();

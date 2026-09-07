@@ -81,6 +81,17 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
     }
   };
 
+  // --- FUNCIÓN DESTRUCTIVA PARA CAMBIAR DE CUENTA ---
+  const handleIngresarConOtraCuenta = () => {
+    // Borramos todo rastro del usuario anterior
+    localStorage.removeItem('huellaActivada');
+    localStorage.removeItem('kardex_cred_name');
+    localStorage.removeItem('kardex_cred');
+    localStorage.removeItem('quiereHuella');
+    // Mostramos el formulario clásico
+    setUsarVistaHuella(false);
+  };
+
   // ==========================================
   // VISTA ESPECIAL: BIENVENIDA CON HUELLA
   // ==========================================
@@ -105,7 +116,6 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
                 {nombreGuardado.charAt(0).toUpperCase()}
               </span>
             </div>
-            {/* AQUÍ SE MUESTRA EL NOMBRE DINÁMICO */}
             <h1 className="text-white text-3xl font-bold mb-2">¡Hola, {nombreGuardado}!</h1>
             <p className="text-slate-400 text-sm px-4">Toca el botón para ingresar con tu huella dactilar.</p>
           </div>
@@ -121,8 +131,8 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
             {loading ? 'Verificando...' : 'Ingresar con Huella'}
           </button>
 
-          {/* ESTE BOTÓN PERMITE SALIR DE LA PANTALLA DE HUELLA */}
-          <button onClick={() => setUsarVistaHuella(false)} className="text-slate-400 text-sm hover:text-white transition-colors text-center cursor-pointer">
+          {/* ESTE BOTÓN AHORA DESTRUYE LA MEMORIA AL HACER CLIC */}
+          <button onClick={handleIngresarConOtraCuenta} className="text-slate-400 text-sm hover:text-white transition-colors text-center cursor-pointer">
             Iniciar sesión con otra cuenta
           </button>
         </div>
