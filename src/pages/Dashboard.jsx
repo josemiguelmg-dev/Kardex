@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabaseClient.js';
 
 export default function Dashboard({ user }) {
@@ -6,8 +6,16 @@ export default function Dashboard({ user }) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   
   const [datosDoctor, setDatosDoctor] = useState({ nombre: '', apellido: '', especialidad: '' });
+  const [permisoNotificaciones, setPermisoNotificaciones] = useState(Notification.permission);
 
+  // 1. Cargar Datos y Pedir Permisos de Notificación
   useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().then(perm => {
+        setPermisoNotificaciones(perm);
+      });
+    }
+
     const cargarDatos = async () => {
       if (user) {
         const { data } = await supabase.from('doctores').select('nombre, apellido, especialidad').eq('id', user.id).maybeSingle();
@@ -26,6 +34,31 @@ export default function Dashboard({ user }) {
       }
     };
     cargarDatos();
+  }, [user]);
+
+  // 2. LISTENER GLOBAL DE EMERGENCIAS
+  useEffect(() => {
+    const canalAlertas = supabase
+      .channel('alertas-globales')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes' }, (payload) => {
+        if (payload.new.user_id !== user?.id) {
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+          audio.play().catch(e => console.log('El navegador bloqueó el autoplay', e));
+
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification(`Emergencia: ${payload.new.nombre_doctor}`, {
+              body: payload.new.texto,
+              icon: '/favicon.svg', 
+              vibrate: [200, 100, 200] 
+            });
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalAlertas);
+    };
   }, [user]);
 
   const handleCerrarSesion = async () => {
@@ -77,9 +110,17 @@ export default function Dashboard({ user }) {
             Configuración
           </button>
 
-          {/* Separador de Módulos */}
           <div className="pt-4 pb-1">
-            <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Módulos</p>
+            <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Comunicaciones</p>
+          </div>
+
+          <button onClick={() => cambiarVista('chat')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium transition-all ${vistaActiva === 'chat' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'}`}>
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            Chat Global <span className="ml-auto w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+          </button>
+
+          <div className="pt-4 pb-1">
+            <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Módulos Médicos</p>
           </div>
 
           <button onClick={() => cambiarVista('pacientes')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium transition-all ${vistaActiva === 'pacientes' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'}`}>
@@ -119,7 +160,9 @@ export default function Dashboard({ user }) {
             <h2 className="text-xl font-bold capitalize">
               {vistaActiva === 'kardex' ? 'Historial Médico' : vistaActiva}
             </h2>
-            <span className="text-slate-400 text-xs">Gestión de tu panel médico</span>
+            <span className="text-slate-400 text-xs">
+              {vistaActiva === 'chat' ? 'Comunicación en tiempo real' : 'Gestión de tu panel médico'}
+            </span>
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
@@ -133,14 +176,161 @@ export default function Dashboard({ user }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <main className={`flex-1 overflow-y-auto ${vistaActiva === 'chat' ? 'p-0 sm:p-4' : 'p-4 sm:p-8'}`}>
           {vistaActiva === 'inicio' && <VistaInicio doctor={datosDoctor} />}
           {vistaActiva === 'perfil' && <VistaPerfil user={user} onActualizar={actualizarDatosGlobales} />}
-          {vistaActiva === 'configuracion' && <VistaConfiguracion user={user} doctor={datosDoctor} />}
+          {vistaActiva === 'configuracion' && <VistaConfiguracion user={user} doctor={datosDoctor} permisoNotificaciones={permisoNotificaciones} setPermisoNotificaciones={setPermisoNotificaciones} />}
+          {vistaActiva === 'chat' && <VistaChat user={user} doctor={datosDoctor} />}
+          
           {vistaActiva === 'pacientes' && <VistaEnDesarrollo titulo="Gestión de Pacientes" />}
           {vistaActiva === 'kardex' && <VistaEnDesarrollo titulo="Historial Médico (Kardex)" />}
           {vistaActiva === 'agenda' && <VistaEnDesarrollo titulo="Agenda de Citas" />}
         </main>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// SUB-COMPONENTE: CHAT GLOBAL (ACTUALIZADO CON BREAK-WORDS)
+// ==========================================
+function VistaChat({ user, doctor }) {
+  const [mensajes, setMensajes] = useState([]);
+  const [nuevoMensaje, setNuevoMensaje] = useState('');
+  const mensajesFinRef = useRef(null);
+
+  const sugerenciasRapidas = [
+    "👨‍⚕️ Solicito apoyo médico",
+    "✅ Paciente estabilizado",
+    "🚑 Ingresando ambulancia",
+  ];
+
+  const hacerScrollAlFondo = () => {
+    mensajesFinRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    const cargarMensajes = async () => {
+      const { data } = await supabase
+        .from('mensajes')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .limit(100);
+      
+      if (data) setMensajes(data);
+    };
+
+    cargarMensajes();
+
+    const canal = supabase
+      .channel('public:mensajes-ui')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes' }, (payload) => {
+        setMensajes((prev) => [...prev, payload.new]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
+  }, []);
+
+  useEffect(() => {
+    hacerScrollAlFondo();
+  }, [mensajes]);
+
+  const enviarMensaje = async (e) => {
+    if (e) e.preventDefault();
+    if (!nuevoMensaje.trim()) return;
+
+    const msjTexto = nuevoMensaje;
+    setNuevoMensaje('');
+
+    await supabase.from('mensajes').insert([{
+      user_id: user.id,
+      nombre_doctor: `Dr(a). ${doctor.nombre} ${doctor.apellido}`.trim() || 'Doctor',
+      texto: msjTexto
+    }]);
+  };
+
+  const usarSugerencia = (texto) => {
+    setNuevoMensaje(texto);
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#141824] sm:rounded-3xl border-x sm:border border-white/10 overflow-hidden relative shadow-2xl">
+      <div className="h-16 bg-[#0a0d16]/80 backdrop-blur-md border-b border-white/5 flex items-center px-6 shrink-0 z-10">
+        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-3"></div>
+        <h3 className="font-bold text-white">Canal de Emergencias</h3>
+        <span className="ml-auto text-xs text-slate-400 bg-white/5 px-2 py-1 rounded-md">Todos los doctores</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[url('/imge.jpg')] bg-cover bg-center bg-blend-overlay bg-[#070b14]/95">
+        {mensajes.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-slate-500">
+            <svg className="w-12 h-12 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            <p>No hay mensajes aún. Inicia la comunicación.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {mensajes.map((msj) => {
+              const esMio = msj.user_id === user.id;
+              return (
+                <div key={msj.id} className={`flex flex-col ${esMio ? 'items-end' : 'items-start'}`}>
+                  <span className={`text-[11px] font-medium mb-1 ${esMio ? 'text-cyan-400 mr-2' : 'text-slate-400 ml-2'}`}>
+                    {esMio ? 'Tú' : msj.nombre_doctor}
+                  </span>
+                  
+                  <div className={`px-4 py-2.5 max-w-[85%] sm:max-w-[70%] rounded-2xl ${
+                    esMio 
+                      ? 'bg-gradient-to-tr from-blue-600 to-cyan-500 text-white rounded-br-sm shadow-md' 
+                      : 'bg-[#1a2035] text-slate-200 border border-white/5 rounded-bl-sm shadow-md'
+                  }`}>
+                    {/* AQUÍ ESTÁ LA SOLUCIÓN: break-words y whitespace-pre-wrap */}
+                    <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msj.texto}</p>
+                  </div>
+                  <span className={`text-[9px] text-slate-500 mt-1 ${esMio ? 'mr-2' : 'ml-2'}`}>
+                    {new Date(msj.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div ref={mensajesFinRef} />
+      </div>
+
+      <div className="bg-[#0a0d16] border-t border-white/5 shrink-0 flex flex-col">
+        <div className="flex gap-2 overflow-x-auto p-3 scrollbar-hide px-4 sm:px-6">
+          {sugerenciasRapidas.map((sug, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => usarSugerencia(sug)}
+              className="shrink-0 bg-[#141824] border border-white/10 hover:bg-white/10 text-cyan-400/80 hover:text-cyan-300 text-[11px] font-medium px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
+            >
+              {sug}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={enviarMensaje} className="px-4 pb-4 sm:px-6">
+          <div className="flex items-center gap-2 max-w-4xl mx-auto">
+            <input
+              type="text"
+              value={nuevoMensaje}
+              onChange={(e) => setNuevoMensaje(e.target.value)}
+              placeholder="Escribe un reporte o solicitud..."
+              className="flex-1 bg-[#141824] border border-white/10 rounded-full px-5 py-3 text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors"
+            />
+            <button 
+              type="submit"
+              disabled={!nuevoMensaje.trim()}
+              className="w-11 h-11 rounded-full bg-cyan-500 flex items-center justify-center text-slate-900 hover:bg-cyan-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -266,7 +456,7 @@ function VistaPerfil({ user, onActualizar }) {
 
   return (
     <div className="max-w-4xl mx-auto animate-fade-in">
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Datos Personales y Profesionales</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Datos Personales</h2>
       
       {mensaje.texto && (
         <div className={`mb-6 px-5 py-4 rounded-2xl border transition-all ${mensaje.tipo === 'error' ? 'bg-red-900/40 border-red-500/50 text-red-200' : 'bg-green-900/40 border-green-500/50 text-green-200'}`}>
@@ -345,9 +535,9 @@ function VistaPerfil({ user, onActualizar }) {
 }
 
 // ==========================================
-// SUB-COMPONENTE: VISTA CONFIGURACIÓN (COMPACTA)
+// SUB-COMPONENTE: VISTA CONFIGURACIÓN 
 // ==========================================
-function VistaConfiguracion({ user, doctor }) {
+function VistaConfiguracion({ user, doctor, permisoNotificaciones, setPermisoNotificaciones }) {
   const [tieneHuella, setTieneHuella] = useState(localStorage.getItem('huellaActivada') === 'true');
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
   const [mostrarModalHuella, setMostrarModalHuella] = useState(false);
@@ -406,6 +596,19 @@ function VistaConfiguracion({ user, doctor }) {
     setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
   };
 
+  const solicitarNotificacionesManual = () => {
+    if ("Notification" in window) {
+      Notification.requestPermission().then(perm => {
+        setPermisoNotificaciones(perm);
+        if (perm === 'granted') {
+          setMensaje({ tipo: 'exito', texto: '¡Notificaciones activadas!' });
+        } else {
+          setMensaje({ tipo: 'error', texto: 'Permiso denegado por el navegador.' });
+        }
+      });
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto animate-fade-in relative">
       <h2 className="text-xl sm:text-2xl font-bold text-white mb-5">Seguridad y Acceso</h2>
@@ -416,22 +619,29 @@ function VistaConfiguracion({ user, doctor }) {
         </div>
       )}
 
-      {mostrarModalHuella && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#070b14]/90 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-[#141824] border border-white/10 p-6 rounded-3xl shadow-2xl max-w-xs w-full flex flex-col items-center text-center">
-            <div className="w-14 h-14 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/30 mb-5">
-              <svg className="w-7 h-7 text-[#070b14]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" /></svg>
-            </div>
-            <h2 className="text-xl font-bold text-white mb-2">Activar Seguridad</h2>
-            <p className="text-slate-400 text-xs mb-6 leading-relaxed">¿Deseas usar tu huella dactilar para iniciar sesión rápidamente la próxima vez?</p>
-            <div className="w-full flex flex-col gap-2">
-              <button onClick={registrarHuella} className="w-full py-3 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-xl text-slate-900 font-bold hover:opacity-90 transition text-sm">Sí, activar ahora</button>
-              <button onClick={() => {localStorage.removeItem('quiereHuella'); setMostrarModalHuella(false);}} className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-white font-medium hover:bg-white/10 transition text-sm">No, gracias</button>
-            </div>
+      {/* Tarjeta Notificaciones */}
+      <div className="bg-[#141824] p-5 rounded-2xl border border-white/10 shadow-md flex flex-col sm:flex-row items-center sm:justify-between gap-4 mb-5">
+        <div className="flex items-center gap-4 w-full">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${permisoNotificaciones === 'granted' ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-400'}`}>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+          </div>
+          <div className="text-left">
+            <h3 className="text-base font-bold text-white mb-0.5">Alertas de Emergencia</h3>
+            <p className="text-slate-400 text-xs max-w-xs leading-relaxed">Recibe sonido y notificación nativa cuando hay una emergencia en el chat global.</p>
           </div>
         </div>
-      )}
+        <div className="shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
+          {permisoNotificaciones === 'granted' ? (
+            <span className="text-blue-400 text-sm font-bold bg-blue-500/10 px-4 py-2 rounded-xl inline-block text-center w-full sm:w-auto">Activadas</span>
+          ) : (
+            <button onClick={solicitarNotificacionesManual} className="w-full sm:w-auto px-5 py-2.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 rounded-xl font-semibold transition-all text-sm">
+              Activar Alertas
+            </button>
+          )}
+        </div>
+      </div>
 
+      {/* Tarjeta Huella */}
       <div className="bg-[#141824] p-5 rounded-2xl border border-white/10 shadow-md flex flex-col sm:flex-row items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4 w-full">
           <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${tieneHuella ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-slate-400'}`}>
