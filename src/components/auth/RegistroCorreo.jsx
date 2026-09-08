@@ -1,100 +1,133 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient.js';
 
-export default function RegistroCorreo({ irALogin, onVerificado }) {
-  const [paso, setPaso] = useState(1); 
-  const [email, setEmail] = useState('');
-  const [codigo, setCodigo] = useState('');
+export default function CompletarRegistro({ user }) {
+  const [paso, setPaso] = useState(1);
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
+  
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [mostrarConfirm, setMostrarConfirm] = useState(false);
+
+  const [perfilData, setPerfilData] = useState({
+    nombre: '', 
+    apellido: '', 
+    cedula: '', 
+    especialidad: '', 
+    telefono: '', 
+    estado: '' 
+  });
 
   useEffect(() => {
     if (mensaje.texto) {
-      const timer = setTimeout(() => setMensaje({ tipo: '', texto: '' }), 4000);
+      const timer = setTimeout(() => {
+        setMensaje({ tipo: '', texto: '' });
+      }, 4000);
       return () => clearTimeout(timer);
     }
   }, [mensaje]);
 
-  useEffect(() => {
-    const verificarGoogleUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const user = session.user;
-        const fechaCreacion = new Date(user.created_at).getTime();
-        const ahora = Date.now();
-
-        if (ahora - fechaCreacion > 10000) {
-          await supabase.auth.signOut();
-          setMensaje({ 
-            tipo: 'error', 
-            texto: 'Este correo ya existe. Por favor, inicia sesión.' 
-          });
-          
-          setTimeout(() => {
-            irALogin();
-          }, 2500);
-        } else {
-          onVerificado(user);
-        }
-      }
-    };
-    verificarGoogleUser();
-  }, [irALogin, onVerificado]);
-
-  const handleGoogleRegister = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-    });
-    if (error) {
-      setMensaje({ tipo: 'error', texto: 'Error al conectar con Google.' });
-    }
+  const handleLetrasChange = (e) => {
+    const { name, value } = e.target;
+    const soloLetras = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+    setPerfilData({ ...perfilData, [name]: soloLetras });
   };
 
-  const handleEnviarCodigo = async (e) => {
+  const handleNumerosChange = (e) => {
+    const { name, value } = e.target;
+    const soloNumeros = value.replace(/\D/g, '');
+    setPerfilData({ ...perfilData, [name]: soloNumeros });
+  };
+
+  const handlePerfilChange = (e) => {
+    setPerfilData({ ...perfilData, [e.target.name]: e.target.value });
+  };
+
+  const handleVolver = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // Función para cerrar sesión y regresar al Login sin error 404
+  const irAlLoginDirecto = async () => {
+    await supabase.auth.signOut();
+    window.location.reload(); // Recarga la página para limpiar estados y mostrar el Login limpio
+  };
+
+  const validarFormulario = () => {
+    if (perfilData.nombre.trim().length < 3 || perfilData.nombre.trim().length > 25) {
+      return "El nombre debe tener entre 3 y 25 letras.";
+    }
+    if (perfilData.apellido.trim().length < 3 || perfilData.apellido.trim().length > 25) {
+      return "El apellido debe tener entre 3 y 25 letras.";
+    }
+    if (perfilData.cedula.length < 7 || perfilData.cedula.length > 8) {
+      return "La cédula debe tener 7 u 8 números.";
+    }
+    if (!perfilData.especialidad) {
+      return "Debes seleccionar una especialidad médica.";
+    }
+    if (perfilData.telefono.length !== 10) {
+      return "El teléfono debe tener exactamente 10 números.";
+    }
+    if (!perfilData.estado) {
+      return "Debes seleccionar un estado.";
+    }
+    if (password.length < 6) {
+      return "La contraseña debe tener al menos 6 caracteres.";
+    }
+    if (password !== confirmPassword) {
+      return "Las contraseñas no coinciden. Por favor verifica.";
+    }
+    
+    return null; 
+  };
+
+  const handleFinalizarRegistro = async (e) => {
     e.preventDefault();
     setMensaje({ tipo: '', texto: '' });
+
+    const errorValidacion = validarFormulario();
+    if (errorValidacion) {
+      setMensaje({ tipo: 'error', texto: errorValidacion });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const emailTrimmed = email.toLowerCase().trim();
+      const { error: authError } = await supabase.auth.updateUser({
+        password: password
+      });
+
+      if (authError) throw authError;
+
+      const telefonoCompleto = `+58${perfilData.telefono.trim()}`;
+
+      const { error: dbError } = await supabase.from('doctores').insert([{
+        id: user.id,
+        nombre: perfilData.nombre.trim(),
+        apellido: perfilData.apellido.trim(),
+        cedula: perfilData.cedula.trim(),
+        especialidad: perfilData.especialidad,
+        telefono: telefonoCompleto,
+        ciudad: perfilData.estado
+      }]);
+
+      if (dbError) throw dbError;
       
-      const { error } = await supabase.auth.signInWithOtp({
-        email: emailTrimmed,
-        options: {
-          shouldCreateUser: true,
-        }
-      });
-
-      if (error) throw error;
-
+      // Cambio a la pantalla de éxito
       setPaso(2);
-      setMensaje({ tipo: 'exito', texto: '¡Código enviado a tu correo!' });
+      
+      // Cierra sesión automáticamente y regresa al Login a los 3 segundos
+      setTimeout(() => {
+        irAlLoginDirecto();
+      }, 3000);
+
     } catch (error) {
-      setMensaje({ tipo: 'error', texto: error.message || 'Error al procesar el registro.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerificarCodigo = async (e) => {
-    e.preventDefault();
-    setMensaje({ tipo: '', texto: '' });
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: email.toLowerCase().trim(),
-        token: codigo.trim(),
-        type: 'email', // <-- Cambiado de 'signup' a 'email' para validar correctamente el OTP
-      });
-
-      if (error) throw error;
-
-      if (data?.user) {
-        onVerificado(data.user);
-      }
-    } catch (error) {
-      setMensaje({ tipo: 'error', texto: 'El código es incorrecto o ha expirado.' });
+      setMensaje({ tipo: 'error', texto: error.message });
     } finally {
       setLoading(false);
     }
@@ -107,131 +140,191 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
           mensaje.tipo === 'error' ? 'bg-red-900/95 border-red-500/50 text-red-100' : 'bg-green-900/95 border-green-500/50 text-green-100'
         }`}>
           <div className="flex items-center gap-3">
-            <svg className="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            {mensaje.tipo === 'error' ? (
+              <svg className="w-6 h-6 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            ) : (
+              <svg className="w-6 h-6 text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            )}
             <p className="text-sm font-medium">{mensaje.texto}</p>
           </div>
         </div>
       )}
 
-      <div className="w-full max-w-[380px] z-10 flex flex-col pt-2">
-        <div className="animate-fade-in flex flex-col">
-          
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/20">
-                <span className="text-[#070b14] font-black text-sm">KE</span>
-              </div>
-              <h2 className="text-3xl font-bold text-white tracking-wide">
+      <div className="w-full max-w-[360px] z-10 flex flex-col pt-2 pb-6 h-full overflow-y-auto overflow-x-hidden scrollbar-hide">
+        {paso === 1 ? (
+          <div className="animate-fade-in flex flex-col">
+            
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 tracking-wide mb-1 uppercase">
                 Kardex
               </h2>
+              <h1 className="text-white text-xl font-bold">Completar Perfil</h1>
+              
+              <div className="mt-3 inline-flex items-center gap-2 bg-[#141824] border border-blue-500/30 px-3 py-1.5 rounded-full shadow-inner">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-slate-300 text-xs font-medium truncate max-w-[200px]">
+                  {user?.email}
+                </span>
+              </div>
             </div>
-            
-            <h1 className="text-white text-3xl font-bold mb-2">
-              {paso === 1 ? 'Crear Cuenta' : 'Verificar Código'}
-            </h1>
-            <p className="text-slate-400 text-sm px-4">
-              {paso === 1 
-                ? 'Para crear una cuenta proporciona tu correo y verifícalo.' 
-                : 'Ingresa el código que enviamos a tu correo electrónico.'}
-            </p>
-          </div>
 
-          {paso === 1 ? (
-            <>
-              <button 
-                onClick={handleGoogleRegister}
-                type="button"
-                className="w-full flex items-center justify-center gap-3 px-5 py-3.5 bg-[#141824] border border-white/10 hover:bg-white/5 rounded-2xl text-white font-medium text-sm transition-all shadow-inner mb-6"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-                Continuar con Google
-              </button>
+            <form onSubmit={handleFinalizarRegistro} className="flex flex-col gap-4">
+              
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" name="nombre" value={perfilData.nombre} onChange={handleLetrasChange} maxLength="25" className="w-full px-5 py-3.5 bg-[#141824] border border-white/10 rounded-2xl text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-500/70 transition-all shadow-inner" placeholder="Nombres" />
+                <input type="text" name="apellido" value={perfilData.apellido} onChange={handleLetrasChange} maxLength="25" className="w-full px-5 py-3.5 bg-[#141824] border border-white/10 rounded-2xl text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-500/70 transition-all shadow-inner" placeholder="Apellidos" />
+              </div>
+              
+              <input type="text" name="cedula" value={perfilData.cedula} onChange={handleNumerosChange} maxLength="8" className="w-full px-5 py-3.5 bg-[#141824] border border-white/10 rounded-2xl text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-500/70 transition-all shadow-inner" placeholder="Cédula (Ej. 29123456)" />
+              
+              <div className="relative">
+                <select name="especialidad" value={perfilData.especialidad} onChange={handlePerfilChange} className="w-full px-5 py-3.5 bg-[#141824] border border-white/10 rounded-2xl text-white text-sm focus:outline-none focus:border-blue-500/70 transition-all shadow-inner appearance-none cursor-pointer">
+                  <option value="" disabled>Selecciona una especialidad</option>
+                  <option value="Alergología">Alergología</option>
+                  <option value="Anestesiología">Anestesiología</option>
+                  <option value="Cardiología">Cardiología</option>
+                  <option value="Cirugía General">Cirugía General</option>
+                  <option value="Cirugía Plástica">Cirugía Plástica</option>
+                  <option value="Dermatología">Dermatología</option>
+                  <option value="Endocrinología">Endocrinología</option>
+                  <option value="Gastroenterología">Gastroenterología</option>
+                  <option value="Geriatría">Geriatría</option>
+                  <option value="Ginecología y Obstetricia">Ginecología y Obstetricia</option>
+                  <option value="Hematología">Hematología</option>
+                  <option value="Infectología">Infectología</option>
+                  <option value="Medicina General">Medicina General</option>
+                  <option value="Medicina Interna">Medicina Interna</option>
+                  <option value="Neumología">Neumología</option>
+                  <option value="Neurología">Neurología</option>
+                  <option value="Odontología">Odontología</option>
+                  <option value="Oftalmología">Oftalmología</option>
+                  <option value="Oncología">Oncología</option>
+                  <option value="Otorrinolaringología">Otorrinolaringología</option>
+                  <option value="Pediatría">Pediatría</option>
+                  <option value="Psiquiatría">Psiquiatría</option>
+                  <option value="Radiología">Radiología</option>
+                  <option value="Reumatología">Reumatología</option>
+                  <option value="Traumatología y Ortopedia">Traumatología y Ortopedia</option>
+                  <option value="Urología">Urología</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
 
-              <div className="flex items-center gap-4 mb-6">
+              <div className="grid grid-cols-[1fr_1fr] gap-4">
+                <div className="flex shadow-inner rounded-2xl border border-white/10 bg-[#141824] focus-within:border-blue-500/70 transition-all overflow-hidden">
+                  <span className="flex items-center justify-center pl-4 pr-2 bg-[#141824] text-slate-400 text-sm font-medium border-r border-white/5">
+                    +58
+                  </span>
+                  <input type="text" name="telefono" value={perfilData.telefono} onChange={handleNumerosChange} maxLength="10" className="w-full px-2 py-3.5 bg-transparent text-white placeholder-slate-400 text-sm focus:outline-none" placeholder="4121234567" />
+                </div>
+                
+                <div className="relative">
+                  <select name="estado" value={perfilData.estado} onChange={handlePerfilChange} className="w-full px-5 py-3.5 bg-[#141824] border border-white/10 rounded-2xl text-white text-sm focus:outline-none focus:border-blue-500/70 transition-all shadow-inner appearance-none cursor-pointer">
+                    <option value="" disabled>Estado...</option>
+                    <option value="Amazonas">Amazonas</option>
+                    <option value="Anzoátegui">Anzoátegui</option>
+                    <option value="Apure">Apure</option>
+                    <option value="Aragua">Aragua</option>
+                    <option value="Barinas">Barinas</option>
+                    <option value="Bolívar">Bolívar</option>
+                    <option value="Carabobo">Carabobo</option>
+                    <option value="Cojedes">Cojedes</option>
+                    <option value="Delta Amacuro">Delta Amacuro</option>
+                    <option value="Distrito Capital">Distrito Capital</option>
+                    <option value="Falcón">Falcón</option>
+                    <option value="Guárico">Guárico</option>
+                    <option value="La Guaira">La Guaira</option>
+                    <option value="Lara">Lara</option>
+                    <option value="Mérida">Mérida</option>
+                    <option value="Miranda">Miranda</option>
+                    <option value="Monagas">Monagas</option>
+                    <option value="Nueva Esparta">Nueva Esparta</option>
+                    <option value="Portuguesa">Portuguesa</option>
+                    <option value="Sucre">Sucre</option>
+                    <option value="Táchira">Táchira</option>
+                    <option value="Trujillo">Trujillo</option>
+                    <option value="Yaracuy">Yaracuy</option>
+                    <option value="Zulia">Zulia</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-400">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 my-2">
                 <div className="flex-1 h-px bg-white/10"></div>
-                <span className="text-slate-500 text-xs font-medium uppercase">O</span>
+                <span className="text-slate-500 text-[10px] uppercase tracking-wider font-semibold">Seguridad</span>
                 <div className="flex-1 h-px bg-white/10"></div>
               </div>
 
-              <form onSubmit={handleEnviarCodigo} className="flex flex-col gap-4">
-                <input
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full px-5 py-4 bg-[#141824] border border-white/10 rounded-2xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500/70 transition-all shadow-inner"
-                  placeholder="Correo electrónico"
+              <div className="relative">
+                <input 
+                  type={mostrarPassword ? "text" : "password"} 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  className="w-full px-5 py-3.5 bg-[#141824] border border-blue-500/40 rounded-2xl text-white placeholder-blue-300/60 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all shadow-inner" 
+                  placeholder="Crea una contraseña (Mín. 6)" 
                 />
-
-                <button
-                  type="submit"
-                  disabled={loading || !email}
-                  className="w-full py-4 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl text-slate-900 font-bold text-base hover:opacity-90 transition-opacity disabled:opacity-50 shadow-lg shadow-blue-500/20"
-                >
-                  {loading ? 'Enviando...' : 'Continuar'}
+                <button type="button" onClick={() => setMostrarPassword(!mostrarPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors">
+                  {mostrarPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.05 10.05 0 015.002-5.414m2.59-1.02A10.01 10.01 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.05 10.05 0 01-2.458 3.864m-4.242-4.242a3 3 0 014.242 4.242M3 3l18 18" /></svg>
+                  )}
                 </button>
-              </form>
-            </>
-          ) : (
-            <form onSubmit={handleVerificarCodigo} className="flex flex-col gap-4 animate-fade-in">
-              <input
-                type="email"
-                value={email}
-                disabled
-                className="w-full px-5 py-4 bg-[#141824]/50 border border-white/5 rounded-2xl text-slate-500 text-sm cursor-not-allowed shadow-inner"
-              />
+              </div>
 
-              <input
-                type="text"
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
-                required
-                maxLength={8}
-                className="w-full px-5 py-4 bg-[#141824] border border-white/10 rounded-2xl text-white placeholder-slate-500 text-sm tracking-widest text-center focus:outline-none focus:border-blue-500/70 transition-all shadow-inner"
-                placeholder="CÓDIGO DE 8 DÍGITOS"
-              />
+              <div className="relative">
+                <input 
+                  type={mostrarConfirm ? "text" : "password"} 
+                  value={confirmPassword} 
+                  onChange={(e) => setConfirmPassword(e.target.value)} 
+                  className="w-full px-5 py-3.5 bg-[#141824] border border-blue-500/40 rounded-2xl text-white placeholder-blue-300/60 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all shadow-inner" 
+                  placeholder="Confirma tu contraseña" 
+                />
+                <button type="button" onClick={() => setMostrarConfirm(!mostrarConfirm)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors">
+                  {mostrarConfirm ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.05 10.05 0 015.002-5.414m2.59-1.02A10.01 10.01 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.05 10.05 0 01-2.458 3.864m-4.242-4.242a3 3 0 014.242 4.242M3 3l18 18" /></svg>
+                  )}
+                </button>
+              </div>
 
-              <button
-                type="submit"
-                disabled={loading || !codigo}
-                className="w-full py-4 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl text-slate-900 font-bold text-base hover:opacity-90 transition-opacity disabled:opacity-50 shadow-lg shadow-blue-500/20"
-              >
-                {loading ? 'Verificando...' : 'Verificar Código'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaso(1)}
-                className="text-slate-400 text-sm hover:text-white transition-colors text-center mt-2"
-              >
-                ← Cambiar correo electrónico
+              <button type="submit" disabled={loading} className="w-full py-4 mt-2 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl text-slate-900 font-bold text-base hover:opacity-90 transition-opacity disabled:opacity-50 shadow-lg shadow-blue-500/20">
+                {loading ? 'Guardando...' : 'Finalizar Registro'}
               </button>
             </form>
-          )}
 
-          <div className="mt-8 flex flex-col items-center gap-6">
-            <p className="text-slate-400 text-sm">
-              ¿Ya tienes una cuenta?{' '}
-              <button onClick={irALogin} className="text-white font-semibold hover:text-cyan-300 transition-colors">
-                Inicia Sesión
-              </button>
+            <button 
+              onClick={handleVolver} 
+              type="button"
+              className="text-slate-400 text-sm text-center mt-6 mb-4 hover:text-white transition cursor-pointer"
+            >
+              ← Cancelar y volver atrás
+            </button>
+          </div>
+        ) : (
+          <div className="animate-fade-in flex flex-col items-center justify-center py-10 w-full">
+            <div className="w-20 h-20 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/30">
+              <svg className="w-10 h-10 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h1 className="text-white text-3xl font-bold text-center mb-4">¡Listo!</h1>
+            <p className="text-slate-300 text-sm text-center mb-8 px-2">
+              Tu cuenta médica ha sido creada y configurada con éxito. Inicia sesión con tus nuevos datos.
             </p>
             
-            <p className="text-slate-600 text-[10px] uppercase tracking-wider">
-              Términos de Servicio | Política de Privacidad
-            </p>
+            <button 
+              onClick={irAlLoginDirecto} 
+              className="w-full py-4 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white font-bold text-sm transition-all shadow-inner"
+            >
+              Ir a Iniciar Sesión
+            </button>
           </div>
-
-        </div>
+        )}
       </div>
     </>
   );
