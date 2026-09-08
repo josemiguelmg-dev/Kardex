@@ -219,7 +219,7 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
       <div className="w-full max-w-[380px] z-10 flex flex-col pt-2">
         <div className="animate-fade-in flex flex-col">
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-15">
+            <div className="flex items-center justify-center gap-3 mb-24">
               <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/20">
                 <span className="text-[#070b14] font-black text-sm">KE</span>
               </div>

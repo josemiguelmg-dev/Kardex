@@ -529,7 +529,7 @@ function VistaPerfil({ user, onActualizar }) {
 
   return (
     <div className="max-w-4xl mx-auto animate-fade-in w-full pb-10">
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Datos Personales y Profesionales</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Datos Personales</h2>
       
       {mensaje.texto && (
         <div className={`mb-6 px-5 py-4 rounded-2xl border transition-all ${mensaje.tipo === 'error' ? 'bg-red-900/40 border-red-500/50 text-red-200' : 'bg-green-900/40 border-green-500/50 text-green-200'}`}>

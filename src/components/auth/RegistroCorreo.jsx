@@ -119,7 +119,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
         <div className="animate-fade-in flex flex-col">
           
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="flex items-center justify-center gap-3 mb-23">
               <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/20 shrink-0">
                 <span className="text-[#070b14] font-black text-sm">KE</span>
               </div>
