@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient.js';
 
-// Importamos todas las vistas
 import Inicio from '../views/Inicio';
 import Perfil from '../views/Perfil';
 import Configuracion from '../views/Configuracion';
@@ -12,7 +11,6 @@ import Calendario from '../views/Calendario';
 export default function Dashboard({ user }) {
   const [vistaActiva, setVistaActiva] = useState(() => localStorage.getItem('kardex_vista') || 'inicio'); 
   const [menuAbierto, setMenuAbierto] = useState(false);
-  
   const [datosDoctor, setDatosDoctor] = useState({ nombre: '', apellido: '', especialidad: '' });
   const [permisoNotificaciones, setPermisoNotificaciones] = useState(Notification.permission);
 
@@ -35,14 +33,14 @@ export default function Dashboard({ user }) {
           
           setDatosDoctor({ nombre: nombreCorto, apellido: apellidoCorto, especialidad: data.especialidad || '' });
           
-          // Lógica de Huella Automática al Entrar
+          // Lógica corregida: Pregunta SIEMPRE al iniciar sesión si no la tiene
           const hActivada = localStorage.getItem('huellaActivada') === 'true';
-          const omitida = localStorage.getItem('huellaOmitida') === 'true';
+          const yaPreguntadoEnEstaSesion = sessionStorage.getItem('huellaPreguntada') === 'true';
           
           if (hActivada) {
             localStorage.setItem('kardex_cred_name', `${nombreCorto} ${apellidoCorto}`.trim());
             localStorage.setItem('kardex_cred_especialidad', data.especialidad || '');
-          } else if (!omitida && window.PublicKeyCredential) {
+          } else if (!yaPreguntadoEnEstaSesion && window.PublicKeyCredential) {
             window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(disp => {
               if (disp) setMostrarModalHuellaGlobal(true);
             });
@@ -81,31 +79,30 @@ export default function Dashboard({ user }) {
         }
       });
 
-      // Si el login fue con contraseña normal, atrapamos la contraseña para guardarla encriptada
       const tempCred = sessionStorage.getItem('temp_kardex_cred');
-      if (tempCred) {
-        localStorage.setItem('kardex_cred', tempCred);
-      }
+      if (tempCred) localStorage.setItem('kardex_cred', tempCred);
 
       localStorage.setItem('huellaActivada', 'true');
       localStorage.setItem('kardex_cred_name', `${datosDoctor.nombre} ${datosDoctor.apellido}`.trim()); 
       localStorage.setItem('kardex_cred_especialidad', datosDoctor.especialidad); 
       localStorage.setItem('kardex_cred_email', user?.email || ''); 
+      sessionStorage.setItem('huellaPreguntada', 'true'); // Ya no molestar en esta sesión
       setTieneHuella(true);
       setMostrarModalHuellaGlobal(false);
     } catch (error) {
       setMensajeHuella({ tipo: 'error', texto: 'Registro cancelado o no compatible.' });
       setTimeout(() => { setMensajeHuella({ tipo: '', texto: '' }); setMostrarModalHuellaGlobal(false); }, 3000);
+      sessionStorage.setItem('huellaPreguntada', 'true');
     }
   };
 
   const rechazarHuellaGlobal = () => {
-    localStorage.setItem('huellaOmitida', 'true');
+    sessionStorage.setItem('huellaPreguntada', 'true'); // Solo se oculta por esta sesión
     setMostrarModalHuellaGlobal(false);
   };
 
   const handleCerrarSesion = async () => {
-    sessionStorage.removeItem('sesionActiva');
+    sessionStorage.clear(); // Limpiamos todo al salir
     localStorage.removeItem('kardex_vista');
     await supabase.auth.signOut();
     window.location.reload();
@@ -174,7 +171,7 @@ export default function Dashboard({ user }) {
           <div className="pt-4 pb-1"><p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Módulos Médicos</p></div>
           <button onClick={() => cambiarVista('pacientes')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium transition-all ${vistaActiva === 'pacientes' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'}`}>
             <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-            Mapa de Camas
+            Mapas de Camas
           </button>
           <button onClick={() => cambiarVista('calendario')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium transition-all ${vistaActiva === 'calendario' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'}`}>
             <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -200,9 +197,9 @@ export default function Dashboard({ user }) {
           </button>
           <div className="hidden md:flex flex-col ml-2">
             <h2 className="text-xl font-bold capitalize">
-              {vistaActiva === 'pacientes' ? 'Mapa Triage / Camas' : (vistaActiva === 'calendario' ? 'Historial de Ingresos' : vistaActiva)}
+              {vistaActiva === 'pacientes' ? 'Mapa Triage / Camas' : (vistaActiva === 'calendario' ? 'Agenda de Ingresos' : vistaActiva)}
             </h2>
-            <span className="text-slate-400 text-xs">Gestión de tu panel médico</span>
+            <span className="text-slate-400 text-xs">Gestión de panel médico</span>
           </div>
           <div className="flex items-center gap-3 ml-auto">
             <div className="text-right hidden sm:block">

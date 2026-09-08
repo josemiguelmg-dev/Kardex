@@ -47,21 +47,20 @@ export default function Configuracion({ permisoNotificaciones, setPermisoNotific
   return (
     <div className="max-w-3xl mx-auto animate-fade-in relative pb-10">
       
-      {/* Banner Superior con Imagen */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-[#141824] to-[#0a0d16] p-6 sm:p-8 rounded-[2rem] border border-white/5 shadow-xl mb-6 sm:mb-8 relative overflow-hidden h-36 sm:h-40">
+      {/* Banner Superior con Imagen Ajustada */}
+      <div className="flex items-center justify-between bg-gradient-to-r from-[#141824] to-[#0a0d16] p-6 sm:p-8 rounded-[2rem] border border-white/5 shadow-xl mb-6 sm:mb-8 relative overflow-hidden h-32 sm:h-40">
         <div className="absolute top-[-50%] right-[-10%] w-48 h-48 bg-blue-500/10 blur-[50px] rounded-full"></div>
-        <div className="z-10">
+        <div className="z-10 max-w-[60%] sm:max-w-full">
           <h2 className="text-xl sm:text-3xl font-bold text-white mb-1">Seguridad</h2>
-          <p className="text-slate-400 text-xs sm:text-sm">Configura tus notificaciones y biometría.</p>
+          <p className="text-slate-400 text-[10px] sm:text-sm">Configura tus notificaciones y biometría.</p>
         </div>
         
-        {/* 👇 AQUÍ LLAMAS A TU IMAGEN DE CONFIGURACIÓN 👇 */}
+        {/* IMAGEN MÁS PEQUEÑA EN MÓVIL (w-20 o w-24) */}
         <img 
           src="/confirme.svg" 
           alt="Ilustración Seguridad" 
-          className="absolute -right-4 -bottom-6 w-40 sm:w-56 h-auto drop-shadow-2xl z-10" 
+          className="absolute right-2 bottom-0 w-24 sm:w-36 lg:w-48 h-auto drop-shadow-2xl z-10 opacity-80 sm:opacity-100 object-contain" 
         />
-        {/* 👆 ----------------------------------------- 👆 */}
       </div>
 
       {mensaje.texto && (

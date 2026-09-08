@@ -3,11 +3,9 @@ export default function Inicio({ doctor }) {
     <div className="animate-fade-in max-w-5xl mx-auto mt-4 sm:mt-10">
       <div className="bg-gradient-to-br from-[#141824] to-[#0a0d16] p-8 sm:p-12 rounded-[2rem] border border-white/10 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between min-h-[250px] sm:min-h-[300px]">
         
-        {/* Luces de fondo (Aura) */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 blur-[80px] rounded-full pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none"></div>
 
-        {/* Textos de Bienvenida (Al frente, z-10) */}
         <div className="z-10 flex flex-col gap-2 w-full md:w-3/5 text-center md:text-left">
           <span className="text-cyan-400 font-bold tracking-widest uppercase text-[10px] sm:text-xs bg-cyan-500/10 w-fit px-3 py-1 rounded-md mx-auto md:mx-0">
             Panel Principal
@@ -20,17 +18,13 @@ export default function Inicio({ doctor }) {
           </p>
         </div>
 
-        {/* IMAGEN DE BIENVENIDA (Al fondo en móvil, a la derecha en PC) */}
-        <div className="absolute -bottom-10 -right-10 opacity-30 md:relative md:bottom-0 md:right-0 md:opacity-100 w-56 sm:w-64 md:w-80 pointer-events-none z-0 transition-all duration-300">
-          
-          {/* 👇 AQUÍ LLAMAS A TU IMAGEN DE BIENVENIDA 👇 */}
+        {/* IMAGEN DE BIENVENIDA AJUSTADA PARA MÓVIL */}
+        <div className="absolute -bottom-4 -right-4 opacity-30 md:relative md:bottom-0 md:right-0 md:opacity-100 w-32 sm:w-48 md:w-64 pointer-events-none z-0 transition-all duration-300">
           <img 
-            src="/medicine.svg" 
+            src="/calen.svg" 
             alt="Ilustración Bienvenida" 
-            className="w-full h-auto drop-shadow-2xl" 
+            className="w-full h-auto drop-shadow-2xl object-contain" 
           />
-          {/* 👆 ------------------------------------- 👆 */}
-
         </div>
       </div>
     </div>

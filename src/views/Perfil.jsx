@@ -56,21 +56,20 @@ export default function Perfil({ user, onActualizar }) {
   return (
     <div className="max-w-4xl mx-auto animate-fade-in w-full pb-10">
       
-      {/* Banner Superior con Imagen */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-[#141824] to-[#0a0d16] p-6 sm:p-8 rounded-[2rem] border border-white/5 shadow-xl mb-6 sm:mb-8 relative overflow-hidden h-36 sm:h-44">
+      {/* Banner Superior con Imagen Ajustada */}
+      <div className="flex items-center justify-between bg-gradient-to-r from-[#141824] to-[#0a0d16] p-6 sm:p-8 rounded-[2rem] border border-white/5 shadow-xl mb-6 sm:mb-8 relative overflow-hidden h-32 sm:h-44">
         <div className="absolute bottom-[-50%] left-[-10%] w-48 h-48 bg-cyan-500/10 blur-[50px] rounded-full"></div>
-        <div className="z-10">
+        <div className="z-10 max-w-[60%] sm:max-w-full">
           <h2 className="text-xl sm:text-3xl font-bold text-white mb-1">Tu Perfil</h2>
-          <p className="text-slate-400 text-xs sm:text-sm">Gestiona tu información profesional y credenciales.</p>
+          <p className="text-slate-400 text-[10px] sm:text-sm">Gestiona tu información profesional y credenciales.</p>
         </div>
         
-        {/* 👇 AQUÍ LLAMAS A TU IMAGEN DE PERFIL 👇 */}
+        {/* IMAGEN MÁS PEQUEÑA EN MÓVIL */}
         <img 
-          src="/calen.svg" 
+          src="/medicine.svg" 
           alt="Ilustración Perfil" 
-          className="absolute -right-4 -bottom-4 w-36 sm:w-48 h-auto drop-shadow-2xl z-10" 
+          className="absolute right-2 bottom-0 w-24 sm:w-36 lg:w-48 h-auto drop-shadow-2xl z-10 opacity-80 sm:opacity-100 object-contain" 
         />
-        {/* 👆 ---------------------------------- 👆 */}
       </div>
       
       {mensaje.texto && (
