@@ -79,7 +79,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
     }
   };
 
-  // PASO 2: Verificar el código de 6 dígitos que envió Supabase
+  // PASO 2: Verificar el código de 8 dígitos que envió Supabase
   const handleVerificarCodigo = async (e) => {
     e.preventDefault();
     setMensaje({ tipo: '', texto: '' });
@@ -199,7 +199,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
                 required
-                maxLength={6}
+                maxLength={8}
                 className="w-full px-5 py-4 bg-[#141824] border border-white/10 rounded-2xl text-white placeholder-slate-500 text-sm tracking-widest text-center focus:outline-none focus:border-blue-500/70 transition-all shadow-inner"
                 placeholder="CÓDIGO DE 6 DÍGITOS"
               />
