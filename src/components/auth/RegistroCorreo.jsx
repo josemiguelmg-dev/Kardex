@@ -15,7 +15,6 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
     }
   }, [mensaje]);
 
-  // Verificar si el usuario volvió de Google y ya existía
   useEffect(() => {
     const verificarGoogleUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -51,7 +50,6 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
     }
   };
 
-  // PASO 1: Enviar correo y cambiar a la pantalla del código
   const handleEnviarCodigo = async (e) => {
     e.preventDefault();
     setMensaje({ tipo: '', texto: '' });
@@ -69,7 +67,6 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
 
       if (error) throw error;
 
-      // Cambiamos al paso 2 para mostrar el input del código
       setPaso(2);
       setMensaje({ tipo: 'exito', texto: '¡Código enviado a tu correo!' });
     } catch (error) {
@@ -79,7 +76,6 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
     }
   };
 
-  // PASO 2: Verificar el código de 8 dígitos que envió Supabase
   const handleVerificarCodigo = async (e) => {
     e.preventDefault();
     setMensaje({ tipo: '', texto: '' });
@@ -89,7 +85,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
       const { data, error } = await supabase.auth.verifyOtp({
         email: email.toLowerCase().trim(),
         token: codigo.trim(),
-        type: 'email', // Cambiado a 'email' para asegurar compatibilidad total en producción con Vercel
+        type: 'signup',
       });
 
       if (error) throw error;
@@ -98,7 +94,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
         onVerificado(data.user);
       }
     } catch (error) {
-      setMensaje({ tipo: 'error', texto: 'El código es incorrecto o ha expirado.' });
+      setMensaje({ tipo: 'error', texto: error.message || 'El código es incorrecto o ha expirado.' });
     } finally {
       setLoading(false);
     }
@@ -138,7 +134,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
             <p className="text-slate-400 text-sm px-4">
               {paso === 1 
                 ? 'Para crear una cuenta proporciona tu correo y verifícalo.' 
-                : 'Ingresa el código que enviamos a tu correo electrónico.'}
+                : 'Ingresa el código de 8 dígitos que enviamos a tu correo electrónico.'}
             </p>
           </div>
 
@@ -201,7 +197,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
                 required
                 maxLength={8}
                 className="w-full px-5 py-4 bg-[#141824] border border-white/10 rounded-2xl text-white placeholder-slate-500 text-sm tracking-widest text-center focus:outline-none focus:border-blue-500/70 transition-all shadow-inner"
-                placeholder="CÓDIGO DE 6 DÍGITOS"
+                placeholder="CÓDIGO DE 8 DÍGITOS"
               />
 
               <button
