@@ -32,6 +32,7 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
     try {
       localStorage.setItem('recordarme', recordarme ? 'true' : 'false');
       
+      // Si el usuario quiere mantener sesión, dejamos la orden de pedir la huella
       if (recordarme) {
         localStorage.setItem('quiereHuella', 'true');
         localStorage.setItem('kardex_cred', btoa(`${email.toLowerCase().trim()}:${password}`));
@@ -75,6 +76,7 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
         if (error) throw error;
       } else {
         setMensaje({ tipo: 'error', texto: 'Credenciales expiradas. Inicia sesión con contraseña.' });
+        setUsarVistaHuella(false); // Vuelve a la vista normal para que recupere la cuenta
       }
     } catch (error) {
       setMensaje({ tipo: 'error', texto: 'Huella no reconocida o cancelada.' });
@@ -138,7 +140,6 @@ export default function Login({ irARegistro, irARecuperar, onLoginExitoso }) {
             
             <h1 className="text-white text-3xl font-bold mb-1">¡Hola, {nombreGuardado}!</h1>
             
-            {/* Especialidad destacada en azul y correo sutil */}
             {especialidadGuardada && (
               <p className="text-cyan-400 text-sm font-semibold tracking-wide uppercase mb-1">{especialidadGuardada}</p>
             )}

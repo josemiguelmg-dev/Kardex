@@ -8,7 +8,12 @@ export default function Dashboard({ user }) {
   const [datosDoctor, setDatosDoctor] = useState({ nombre: '', apellido: '', especialidad: '' });
   const [permisoNotificaciones, setPermisoNotificaciones] = useState(Notification.permission);
 
-  // 1. Cargar Datos y Pedir Permisos de Notificación
+  // Estados Globales para el Modal de Huella
+  const [tieneHuella, setTieneHuella] = useState(localStorage.getItem('huellaActivada') === 'true');
+  const [mostrarModalHuellaGlobal, setMostrarModalHuellaGlobal] = useState(false);
+  const [mensajeHuella, setMensajeHuella] = useState({ tipo: '', texto: '' });
+
+  // 1. Cargar Datos y Pedir Permisos
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission().then(perm => {
@@ -25,10 +30,16 @@ export default function Dashboard({ user }) {
           
           setDatosDoctor({ nombre: nombreCorto, apellido: apellidoCorto, especialidad: data.especialidad || '' });
           
-          const tieneHuella = localStorage.getItem('huellaActivada') === 'true';
-          if (tieneHuella) {
+          const quiereHuella = localStorage.getItem('quiereHuella') === 'true';
+          const hActivada = localStorage.getItem('huellaActivada') === 'true';
+          
+          if (hActivada) {
             localStorage.setItem('kardex_cred_name', `${nombreCorto} ${apellidoCorto}`.trim());
             localStorage.setItem('kardex_cred_especialidad', data.especialidad || '');
+          } else if (quiereHuella && window.PublicKeyCredential) {
+            window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(disp => {
+              if (disp) setMostrarModalHuellaGlobal(true);
+            });
           }
         }
       }
@@ -61,6 +72,51 @@ export default function Dashboard({ user }) {
     };
   }, [user]);
 
+  const registrarHuellaGlobal = async () => {
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+      const userId = new Uint8Array(16);
+      window.crypto.getRandomValues(userId);
+
+      await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: "Kardex Emergencia", id: window.location.hostname },
+          user: { id: userId, name: user?.email, displayName: `${datosDoctor.nombre} ${datosDoctor.apellido}`.trim() || 'Doctor' },
+          pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+          authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "required", requireResidentKey: true },
+          timeout: 60000,
+        }
+      });
+
+      localStorage.setItem('huellaActivada', 'true');
+      localStorage.setItem('kardex_cred_name', `${datosDoctor.nombre} ${datosDoctor.apellido}`.trim()); 
+      localStorage.setItem('kardex_cred_especialidad', datosDoctor.especialidad); 
+      localStorage.setItem('kardex_cred_email', user?.email || ''); 
+      localStorage.removeItem('quiereHuella');
+      setTieneHuella(true);
+      setMostrarModalHuellaGlobal(false);
+    } catch (error) {
+      setMensajeHuella({ tipo: 'error', texto: 'Registro cancelado o no compatible.' });
+      setTimeout(() => setMensajeHuella({ tipo: '', texto: '' }), 3000);
+    }
+  };
+
+  const quitarHuellaGlobal = () => {
+    localStorage.removeItem('huellaActivada');
+    localStorage.removeItem('kardex_cred_name');
+    localStorage.removeItem('kardex_cred_email');
+    localStorage.removeItem('kardex_cred_especialidad');
+    localStorage.removeItem('kardex_cred');
+    setTieneHuella(false);
+  };
+
+  const rechazarHuellaGlobal = () => {
+    localStorage.removeItem('quiereHuella');
+    setMostrarModalHuellaGlobal(false);
+  };
+
   const handleCerrarSesion = async () => {
     sessionStorage.removeItem('sesionActiva');
     await supabase.auth.signOut();
@@ -72,20 +128,42 @@ export default function Dashboard({ user }) {
     setMenuAbierto(false);
   };
 
+  // ¡AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA!
   const actualizarDatosGlobales = (nuevosDatos) => {
     setDatosDoctor(nuevosDatos);
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#070b14] text-white font-sans overflow-hidden relative">
+    <div className="flex h-[100dvh] w-full bg-[#070b14] text-white font-sans overflow-hidden relative">
       <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-blue-600/10 blur-[150px] rounded-full pointer-events-none"></div>
+
+      {mostrarModalHuellaGlobal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#070b14]/90 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-[#141824] border border-white/10 p-6 rounded-3xl shadow-2xl max-w-xs w-full flex flex-col items-center text-center">
+            <div className="w-14 h-14 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/30 mb-5">
+              <svg className="w-7 h-7 text-[#070b14]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" /></svg>
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Activar Seguridad</h2>
+            
+            {mensajeHuella.texto ? (
+              <p className="text-red-400 text-xs mb-6 font-medium bg-red-500/10 py-1.5 px-3 rounded-lg">{mensajeHuella.texto}</p>
+            ) : (
+              <p className="text-slate-400 text-xs mb-6 leading-relaxed">¿Deseas usar tu huella dactilar para iniciar sesión rápidamente la próxima vez?</p>
+            )}
+
+            <div className="w-full flex flex-col gap-2">
+              <button onClick={registrarHuellaGlobal} className="w-full py-3 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-xl text-slate-900 font-bold hover:opacity-90 transition text-sm shadow-lg shadow-blue-500/20">Sí, activar ahora</button>
+              <button onClick={rechazarHuellaGlobal} className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-white font-medium hover:bg-white/10 transition text-sm">No, gracias</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {menuAbierto && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden" onClick={() => setMenuAbierto(false)}></div>
       )}
 
-      {/* --- BARRA LATERAL (SIDEBAR) --- */}
-      <aside className={`fixed inset-y-4 left-4 z-50 w-64 bg-[#141824]/95 backdrop-blur-xl border border-white/10 shadow-2xl rounded-3xl flex flex-col transition-transform duration-300 ease-in-out ${menuAbierto ? 'translate-x-0' : '-translate-x-[150%]'} md:relative md:translate-x-0 md:inset-auto md:h-[calc(100vh-2rem)] md:m-4`}>
+      <aside className={`fixed inset-y-4 left-4 z-50 w-64 bg-[#141824]/95 backdrop-blur-xl border border-white/10 shadow-2xl rounded-3xl flex flex-col transition-transform duration-300 ease-in-out ${menuAbierto ? 'translate-x-0' : '-translate-x-[150%]'} md:relative md:translate-x-0 md:inset-auto md:h-[calc(100dvh-2rem)] md:m-4`}>
         
         <div className="h-20 flex items-center px-6 border-b border-white/5 shrink-0">
           <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-lg shadow-white/20 mr-3">
@@ -150,7 +228,7 @@ export default function Dashboard({ user }) {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col h-full z-10 relative">
+      <div className="flex-1 flex flex-col h-full z-10 relative overflow-hidden">
         <header className="h-20 flex items-center justify-between px-4 sm:px-8 border-b border-white/5 bg-transparent shrink-0">
           <button onClick={() => setMenuAbierto(true)} className="p-2 text-slate-400 hover:text-white bg-[#141824] border border-white/10 rounded-xl md:hidden transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -176,10 +254,10 @@ export default function Dashboard({ user }) {
           </div>
         </header>
 
-        <main className={`flex-1 overflow-y-auto ${vistaActiva === 'chat' ? 'p-0 sm:p-4' : 'p-4 sm:p-8'}`}>
+        <main className={`flex-1 w-full relative ${vistaActiva === 'chat' ? 'p-0 sm:p-4 flex flex-col overflow-hidden' : 'p-4 sm:p-8 overflow-x-hidden overflow-y-auto pb-24'}`}>
           {vistaActiva === 'inicio' && <VistaInicio doctor={datosDoctor} />}
           {vistaActiva === 'perfil' && <VistaPerfil user={user} onActualizar={actualizarDatosGlobales} />}
-          {vistaActiva === 'configuracion' && <VistaConfiguracion user={user} doctor={datosDoctor} permisoNotificaciones={permisoNotificaciones} setPermisoNotificaciones={setPermisoNotificaciones} />}
+          {vistaActiva === 'configuracion' && <VistaConfiguracion tieneHuella={tieneHuella} registrarHuellaGlobal={registrarHuellaGlobal} quitarHuellaGlobal={quitarHuellaGlobal} permisoNotificaciones={permisoNotificaciones} setPermisoNotificaciones={setPermisoNotificaciones} />}
           {vistaActiva === 'chat' && <VistaChat user={user} doctor={datosDoctor} />}
           
           {vistaActiva === 'pacientes' && <VistaEnDesarrollo titulo="Gestión de Pacientes" />}
@@ -192,7 +270,7 @@ export default function Dashboard({ user }) {
 }
 
 // ==========================================
-// SUB-COMPONENTE: CHAT GLOBAL (ACTUALIZADO CON BREAK-WORDS)
+// SUB-COMPONENTE: CHAT GLOBAL 
 // ==========================================
 function VistaChat({ user, doctor }) {
   const [mensajes, setMensajes] = useState([]);
@@ -252,26 +330,22 @@ function VistaChat({ user, doctor }) {
     }]);
   };
 
-  const usarSugerencia = (texto) => {
-    setNuevoMensaje(texto);
-  };
-
   return (
-    <div className="flex flex-col h-full bg-[#141824] sm:rounded-3xl border-x sm:border border-white/10 overflow-hidden relative shadow-2xl">
+    <div className="flex flex-col h-full w-full bg-[#141824] sm:rounded-3xl border-x sm:border border-white/10 overflow-hidden shadow-2xl relative">
       <div className="h-16 bg-[#0a0d16]/80 backdrop-blur-md border-b border-white/5 flex items-center px-6 shrink-0 z-10">
         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-3"></div>
         <h3 className="font-bold text-white">Canal de Emergencias</h3>
         <span className="ml-auto text-xs text-slate-400 bg-white/5 px-2 py-1 rounded-md">Todos los doctores</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[url('/imge.jpg')] bg-cover bg-center bg-blend-overlay bg-[#070b14]/95">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[url('/imge.jpg')] bg-cover bg-center bg-blend-overlay bg-[#070b14]/95 scroll-smooth">
         {mensajes.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-500">
             <svg className="w-12 h-12 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
             <p>No hay mensajes aún. Inicia la comunicación.</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 pb-2">
             {mensajes.map((msj) => {
               const esMio = msj.user_id === user.id;
               return (
@@ -285,7 +359,6 @@ function VistaChat({ user, doctor }) {
                       ? 'bg-gradient-to-tr from-blue-600 to-cyan-500 text-white rounded-br-sm shadow-md' 
                       : 'bg-[#1a2035] text-slate-200 border border-white/5 rounded-bl-sm shadow-md'
                   }`}>
-                    {/* AQUÍ ESTÁ LA SOLUCIÓN: break-words y whitespace-pre-wrap */}
                     <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msj.texto}</p>
                   </div>
                   <span className={`text-[9px] text-slate-500 mt-1 ${esMio ? 'mr-2' : 'ml-2'}`}>
@@ -299,13 +372,13 @@ function VistaChat({ user, doctor }) {
         <div ref={mensajesFinRef} />
       </div>
 
-      <div className="bg-[#0a0d16] border-t border-white/5 shrink-0 flex flex-col">
+      <div className="bg-[#0a0d16] border-t border-white/5 shrink-0 flex flex-col pb-safe">
         <div className="flex gap-2 overflow-x-auto p-3 scrollbar-hide px-4 sm:px-6">
           {sugerenciasRapidas.map((sug, i) => (
             <button
               key={i}
               type="button"
-              onClick={() => usarSugerencia(sug)}
+              onClick={() => setNuevoMensaje(sug)}
               className="shrink-0 bg-[#141824] border border-white/10 hover:bg-white/10 text-cyan-400/80 hover:text-cyan-300 text-[11px] font-medium px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
             >
               {sug}
@@ -337,7 +410,7 @@ function VistaChat({ user, doctor }) {
 }
 
 // ==========================================
-// SUB-COMPONENTE: VISTA INICIO (MINIMALISTA)
+// SUB-COMPONENTE: VISTA INICIO
 // ==========================================
 function VistaInicio({ doctor }) {
   return (
@@ -455,8 +528,8 @@ function VistaPerfil({ user, onActualizar }) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto animate-fade-in">
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Datos Personales</h2>
+    <div className="max-w-4xl mx-auto animate-fade-in w-full pb-10">
+      <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Datos Personales y Profesionales</h2>
       
       {mensaje.texto && (
         <div className={`mb-6 px-5 py-4 rounded-2xl border transition-all ${mensaje.tipo === 'error' ? 'bg-red-900/40 border-red-500/50 text-red-200' : 'bg-green-900/40 border-green-500/50 text-green-200'}`}>
@@ -537,64 +610,8 @@ function VistaPerfil({ user, onActualizar }) {
 // ==========================================
 // SUB-COMPONENTE: VISTA CONFIGURACIÓN 
 // ==========================================
-function VistaConfiguracion({ user, doctor, permisoNotificaciones, setPermisoNotificaciones }) {
-  const [tieneHuella, setTieneHuella] = useState(localStorage.getItem('huellaActivada') === 'true');
+function VistaConfiguracion({ tieneHuella, registrarHuellaGlobal, quitarHuellaGlobal, permisoNotificaciones, setPermisoNotificaciones }) {
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
-  const [mostrarModalHuella, setMostrarModalHuella] = useState(false);
-
-  useEffect(() => {
-    const quiereHuella = localStorage.getItem('quiereHuella') === 'true';
-    if (quiereHuella && !tieneHuella && window.PublicKeyCredential) {
-      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(disp => {
-        if (disp) setMostrarModalHuella(true);
-      });
-    }
-  }, [tieneHuella]);
-
-  const registrarHuella = async () => {
-    try {
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-      const userId = new Uint8Array(16);
-      window.crypto.getRandomValues(userId);
-
-      await navigator.credentials.create({
-        publicKey: {
-          challenge,
-          rp: { name: "Kardex Emergencia", id: window.location.hostname },
-          user: { id: userId, name: user?.email, displayName: `${doctor.nombre} ${doctor.apellido}` || 'Doctor' },
-          pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
-          authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "required", requireResidentKey: true },
-          timeout: 60000,
-        }
-      });
-
-      localStorage.setItem('huellaActivada', 'true');
-      localStorage.setItem('kardex_cred_name', `${doctor.nombre} ${doctor.apellido}`.trim()); 
-      localStorage.setItem('kardex_cred_especialidad', doctor.especialidad); 
-      localStorage.setItem('kardex_cred_email', user?.email || ''); 
-      localStorage.removeItem('quiereHuella');
-      setTieneHuella(true);
-      setMostrarModalHuella(false);
-      setMensaje({ tipo: 'exito', texto: '¡Huella dactilar configurada exitosamente!' });
-    } catch (error) {
-      setMensaje({ tipo: 'error', texto: 'Registro cancelado o dispositivo no compatible.' });
-      setMostrarModalHuella(false);
-    } finally {
-      setTimeout(() => setMensaje({ tipo: '', texto: '' }), 4000);
-    }
-  };
-
-  const quitarHuella = () => {
-    localStorage.removeItem('huellaActivada');
-    localStorage.removeItem('kardex_cred_name');
-    localStorage.removeItem('kardex_cred_email');
-    localStorage.removeItem('kardex_cred_especialidad');
-    localStorage.removeItem('kardex_cred');
-    setTieneHuella(false);
-    setMensaje({ tipo: 'exito', texto: 'Huella eliminada del sistema.' });
-    setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
-  };
 
   const solicitarNotificacionesManual = () => {
     if ("Notification" in window) {
@@ -610,7 +627,7 @@ function VistaConfiguracion({ user, doctor, permisoNotificaciones, setPermisoNot
   };
 
   return (
-    <div className="max-w-2xl mx-auto animate-fade-in relative">
+    <div className="max-w-2xl mx-auto animate-fade-in relative pb-10">
       <h2 className="text-xl sm:text-2xl font-bold text-white mb-5">Seguridad y Acceso</h2>
       
       {mensaje.texto && (
@@ -655,11 +672,11 @@ function VistaConfiguracion({ user, doctor, permisoNotificaciones, setPermisoNot
         
         <div className="shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
           {!tieneHuella ? (
-            <button onClick={registrarHuella} className="w-full sm:w-auto px-5 py-2.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 rounded-xl font-semibold transition-all text-sm">
+            <button onClick={registrarHuellaGlobal} className="w-full sm:w-auto px-5 py-2.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 rounded-xl font-semibold transition-all text-sm">
               Activar Huella
             </button>
           ) : (
-            <button onClick={quitarHuella} className="w-full sm:w-auto px-5 py-2.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 rounded-xl font-semibold transition-all text-sm">
+            <button onClick={quitarHuellaGlobal} className="w-full sm:w-auto px-5 py-2.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 rounded-xl font-semibold transition-all text-sm">
               Desactivar Huella
             </button>
           )}
