@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient.js';
 
 export default function CompletarRegistro({ user }) {
-  // Configuro mis estados iniciales
   const [paso, setPaso] = useState(1);
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
@@ -22,7 +21,6 @@ export default function CompletarRegistro({ user }) {
     estado: '' 
   });
 
-  // Mi efecto para limpiar los mensajes flotantes a los 4 segundos
   useEffect(() => {
     if (mensaje.texto) {
       const timer = setTimeout(() => {
@@ -32,14 +30,12 @@ export default function CompletarRegistro({ user }) {
     }
   }, [mensaje]);
 
-  // Manejador estricto: SOLO PERMITE LETRAS Y ESPACIOS
   const handleLetrasChange = (e) => {
     const { name, value } = e.target;
     const soloLetras = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
     setPerfilData({ ...perfilData, [name]: soloLetras });
   };
 
-  // Manejador estricto: SOLO PERMITE NÚMEROS
   const handleNumerosChange = (e) => {
     const { name, value } = e.target;
     const soloNumeros = value.replace(/\D/g, '');
@@ -54,13 +50,11 @@ export default function CompletarRegistro({ user }) {
     await supabase.auth.signOut();
   };
 
-  // Función para redirigir al doctor a la aplicación principal
-  const irAlSiguienteArchivo = () => {
-    // ⚠️ ATENCIÓN: Cambia "/dashboard" por la ruta real de tu próximo archivo (Ej: "/inicio" o "/panel")
-    window.location.href = "/dashboard"; 
+  // Solución 404: Recargamos la app en la raíz para que App.jsx detecte el perfil completo y cargue el Dashboard nativo
+  const irAlSistema = () => {
+    window.location.href = "/"; 
   };
 
-  // Validaciones finales antes de guardar en base de datos
   const validarFormulario = () => {
     if (perfilData.nombre.trim().length < 3 || perfilData.nombre.trim().length > 25) {
       return "El nombre debe tener entre 3 y 25 letras.";
@@ -123,12 +117,15 @@ export default function CompletarRegistro({ user }) {
 
       if (dbError) throw dbError;
       
-      // Cambio a la pantalla 2 (¡Listo!)
+      // Mostramos alerta de éxito en pantalla
+      setMensaje({ tipo: 'exito', texto: '¡Cuenta creada y configurada con éxito!' });
+      
+      // Cambio a la pantalla de éxito (Paso 2)
       setPaso(2);
       
-      // Activo un temporizador para que lo envíe automático al dashboard a los 3 segundos
+      // Redirige de forma limpia al sistema a los 3 segundos
       setTimeout(() => {
-        irAlSiguienteArchivo();
+        irAlSistema();
       }, 3000);
 
     } catch (error) {
@@ -317,14 +314,13 @@ export default function CompletarRegistro({ user }) {
             <div className="w-20 h-20 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/30">
               <svg className="w-10 h-10 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
             </div>
-            <h1 className="text-white text-3xl font-bold text-center mb-4">¡Listo!</h1>
+            <h1 className="text-white text-3xl font-bold text-center mb-4">¡Creada Exitosamente!</h1>
             <p className="text-slate-300 text-sm text-center mb-8 px-2">
-              Tu cuenta médica ha sido creada y configurada con éxito.
+              Tu cuenta médica ha sido registrada correctamente. Entrando al sistema...
             </p>
             
-            {/* Nuevo botón para redireccionar manualmente */}
             <button 
-              onClick={irAlSiguienteArchivo} 
+              onClick={irAlSistema} 
               className="w-full py-4 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white font-bold text-sm transition-all shadow-inner"
             >
               Continuar al sistema
