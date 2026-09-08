@@ -85,7 +85,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
       const { data, error } = await supabase.auth.verifyOtp({
         email: email.toLowerCase().trim(),
         token: codigo.trim(),
-        type: 'signup',
+        type: 'email', // <-- Cambiado de 'signup' a 'email' para validar correctamente el OTP
       });
 
       if (error) throw error;
@@ -94,7 +94,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
         onVerificado(data.user);
       }
     } catch (error) {
-      setMensaje({ tipo: 'error', texto: error.message || 'El código es incorrecto o ha expirado.' });
+      setMensaje({ tipo: 'error', texto: 'El código es incorrecto o ha expirado.' });
     } finally {
       setLoading(false);
     }
@@ -134,7 +134,7 @@ export default function RegistroCorreo({ irALogin, onVerificado }) {
             <p className="text-slate-400 text-sm px-4">
               {paso === 1 
                 ? 'Para crear una cuenta proporciona tu correo y verifícalo.' 
-                : 'Ingresa el código de 8 dígitos que enviamos a tu correo electrónico.'}
+                : 'Ingresa el código que enviamos a tu correo electrónico.'}
             </p>
           </div>
 
