@@ -23,7 +23,6 @@ export default function Calendario() {
         setHistorial(prev => [payload.new, ...prev]);
       }).subscribe();
 
-    // Return protegido con llaves
     return () => {
       supabase.removeChannel(canalHistorial);
     };
@@ -45,11 +44,13 @@ export default function Calendario() {
 
   return (
     <div className="animate-fade-in max-w-7xl mx-auto flex flex-col gap-6 pb-10">
+      
       <div className="bg-gradient-to-r from-[#141824] to-[#0a0d16] p-6 sm:p-8 rounded-[2rem] border border-white/10 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white mb-1">Agenda de Ingresos</h2>
           <p className="text-sm text-slate-400 capitalize">{mesActual} {anioActual}</p>
         </div>
+        
         <div className="flex bg-[#0a0d16] p-1.5 rounded-2xl w-fit border border-white/5 shadow-sm">
           <button onClick={() => setVista('mes')} className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${vista === 'mes' ? 'bg-[#141824] text-cyan-400 shadow-md border border-white/5' : 'text-slate-500 hover:text-white'}`}>
             Mes
@@ -99,9 +100,11 @@ export default function Calendario() {
         <div className="bg-[#141824] p-4 sm:p-8 rounded-[2rem] border border-white/5 shadow-xl">
           {Object.keys(historialAgrupado).length === 0 ? (
             <div className="py-16 text-center flex flex-col items-center">
-              <svg className="w-12 h-12 text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              <span className="text-slate-400 font-medium">La agenda está vacía.</span>
-              <p className="text-xs text-slate-500 mt-1">Registra un paciente en el Mapa de Camas.</p>
+              
+              <img src="/morning.svg" alt="Ilustración médica" className="h-24 sm:h-32 w-auto z-10 drop-shadow-2xl" />
+              
+              <span className="text-slate-300 text-lg font-bold">La agenda está vacía</span>
+              <p className="text-sm text-slate-500 mt-1">Registra un paciente en el Mapa de Camas y aparecerá aquí.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-8">

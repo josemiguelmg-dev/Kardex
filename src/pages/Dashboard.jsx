@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient.js';
 
-// Importamos todas las vistas desde la nueva carpeta
+// Importamos todas las vistas
 import Inicio from '../views/Inicio';
 import Perfil from '../views/Perfil';
 import Configuracion from '../views/Configuracion';
@@ -12,8 +12,14 @@ import Calendario from '../views/Calendario';
 export default function Dashboard({ user }) {
   const [vistaActiva, setVistaActiva] = useState(() => localStorage.getItem('kardex_vista') || 'inicio'); 
   const [menuAbierto, setMenuAbierto] = useState(false);
+  
   const [datosDoctor, setDatosDoctor] = useState({ nombre: '', apellido: '', especialidad: '' });
   const [permisoNotificaciones, setPermisoNotificaciones] = useState(Notification.permission);
+
+  // Modal Global Huella
+  const [tieneHuella, setTieneHuella] = useState(localStorage.getItem('huellaActivada') === 'true');
+  const [mostrarModalHuellaGlobal, setMostrarModalHuellaGlobal] = useState(false);
+  const [mensajeHuella, setMensajeHuella] = useState({ tipo: '', texto: '' });
 
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
@@ -29,9 +35,17 @@ export default function Dashboard({ user }) {
           
           setDatosDoctor({ nombre: nombreCorto, apellido: apellidoCorto, especialidad: data.especialidad || '' });
           
-          if (localStorage.getItem('huellaActivada') === 'true') {
+          // Lógica de Huella Automática al Entrar
+          const hActivada = localStorage.getItem('huellaActivada') === 'true';
+          const omitida = localStorage.getItem('huellaOmitida') === 'true';
+          
+          if (hActivada) {
             localStorage.setItem('kardex_cred_name', `${nombreCorto} ${apellidoCorto}`.trim());
             localStorage.setItem('kardex_cred_especialidad', data.especialidad || '');
+          } else if (!omitida && window.PublicKeyCredential) {
+            window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(disp => {
+              if (disp) setMostrarModalHuellaGlobal(true);
+            });
           }
         }
       }
@@ -39,7 +53,6 @@ export default function Dashboard({ user }) {
     cargarDatos();
   }, [user]);
 
-  // Listener Global de Alertas
   useEffect(() => {
     const canalAlertas = supabase.channel('alertas-globales')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes' }, (payload) => {
@@ -52,6 +65,44 @@ export default function Dashboard({ user }) {
       }).subscribe();
     return () => supabase.removeChannel(canalAlertas);
   }, [user]);
+
+  const registrarHuellaGlobal = async () => {
+    try {
+      const challenge = new Uint8Array(32); window.crypto.getRandomValues(challenge);
+      const userId = new Uint8Array(16); window.crypto.getRandomValues(userId);
+
+      await navigator.credentials.create({
+        publicKey: {
+          challenge, rp: { name: "Kardex Emergencia", id: window.location.hostname },
+          user: { id: userId, name: user?.email, displayName: `${datosDoctor.nombre} ${datosDoctor.apellido}`.trim() || 'Doctor' },
+          pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+          authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "required", requireResidentKey: true },
+          timeout: 60000,
+        }
+      });
+
+      // Si el login fue con contraseña normal, atrapamos la contraseña para guardarla encriptada
+      const tempCred = sessionStorage.getItem('temp_kardex_cred');
+      if (tempCred) {
+        localStorage.setItem('kardex_cred', tempCred);
+      }
+
+      localStorage.setItem('huellaActivada', 'true');
+      localStorage.setItem('kardex_cred_name', `${datosDoctor.nombre} ${datosDoctor.apellido}`.trim()); 
+      localStorage.setItem('kardex_cred_especialidad', datosDoctor.especialidad); 
+      localStorage.setItem('kardex_cred_email', user?.email || ''); 
+      setTieneHuella(true);
+      setMostrarModalHuellaGlobal(false);
+    } catch (error) {
+      setMensajeHuella({ tipo: 'error', texto: 'Registro cancelado o no compatible.' });
+      setTimeout(() => { setMensajeHuella({ tipo: '', texto: '' }); setMostrarModalHuellaGlobal(false); }, 3000);
+    }
+  };
+
+  const rechazarHuellaGlobal = () => {
+    localStorage.setItem('huellaOmitida', 'true');
+    setMostrarModalHuellaGlobal(false);
+  };
 
   const handleCerrarSesion = async () => {
     sessionStorage.removeItem('sesionActiva');
@@ -69,6 +120,26 @@ export default function Dashboard({ user }) {
   return (
     <div className="flex h-[100dvh] w-full bg-[#070b14] text-white font-sans overflow-hidden relative">
       <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-blue-600/10 blur-[150px] rounded-full pointer-events-none"></div>
+
+      {mostrarModalHuellaGlobal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#070b14]/90 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-[#141824] border border-white/10 p-6 rounded-3xl shadow-2xl max-w-xs w-full flex flex-col items-center text-center">
+            <div className="w-14 h-14 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/30 mb-5">
+              <svg className="w-7 h-7 text-[#070b14]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" /></svg>
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Activar Seguridad</h2>
+            {mensajeHuella.texto ? (
+              <p className="text-red-400 text-xs mb-6 font-medium bg-red-500/10 py-1.5 px-3 rounded-lg">{mensajeHuella.texto}</p>
+            ) : (
+              <p className="text-slate-400 text-xs mb-6 leading-relaxed">¿Deseas usar tu huella dactilar para iniciar sesión rápidamente la próxima vez?</p>
+            )}
+            <div className="w-full flex flex-col gap-2">
+              <button onClick={registrarHuellaGlobal} className="w-full py-3 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-xl text-slate-900 font-bold hover:opacity-90 transition text-sm shadow-lg shadow-blue-500/20">Sí, activar ahora</button>
+              <button onClick={rechazarHuellaGlobal} className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-white font-medium hover:bg-white/10 transition text-sm">No, gracias</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {menuAbierto && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden" onClick={() => setMenuAbierto(false)}></div>}
 
@@ -129,9 +200,9 @@ export default function Dashboard({ user }) {
           </button>
           <div className="hidden md:flex flex-col ml-2">
             <h2 className="text-xl font-bold capitalize">
-              {vistaActiva === 'pacientes' ? 'Mapa Triage / Camas' : (vistaActiva === 'calendario' ? 'Agenda de Ingresos' : vistaActiva)}
+              {vistaActiva === 'pacientes' ? 'Mapa Triage / Camas' : (vistaActiva === 'calendario' ? 'Historial de Ingresos' : vistaActiva)}
             </h2>
-            <span className="text-slate-400 text-xs">Gestión de panel médico</span>
+            <span className="text-slate-400 text-xs">Gestión de tu panel médico</span>
           </div>
           <div className="flex items-center gap-3 ml-auto">
             <div className="text-right hidden sm:block">
@@ -145,7 +216,6 @@ export default function Dashboard({ user }) {
         </header>
 
         <main className={`flex-1 w-full relative ${vistaActiva === 'chat' ? 'p-0 sm:p-4 flex flex-col overflow-hidden' : 'p-4 sm:p-8 overflow-x-hidden overflow-y-auto pb-24'}`}>
-          {/* Aquí se inyectan las vistas separadas */}
           {vistaActiva === 'inicio' && <Inicio doctor={datosDoctor} />}
           {vistaActiva === 'perfil' && <Perfil user={user} onActualizar={setDatosDoctor} />}
           {vistaActiva === 'configuracion' && <Configuracion permisoNotificaciones={permisoNotificaciones} setPermisoNotificaciones={setPermisoNotificaciones} doctor={datosDoctor} user={user} />}

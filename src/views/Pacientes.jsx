@@ -50,10 +50,7 @@ export default function Pacientes({ doctor }) {
       })
       .subscribe();
 
-    // Retorno protegido con llaves
-    return () => {
-      supabase.removeChannel(canalCamas);
-    };
+    return () => supabase.removeChannel(canalCamas);
   }, []);
 
   const totalOcupadas = camas.filter(c => c.ocupada).length;
@@ -220,7 +217,7 @@ export default function Pacientes({ doctor }) {
           <div className="bg-[#141824] p-4 sm:p-8 rounded-[2rem] border border-white/5 shadow-xl">
             {camasFiltradas.length === 0 ? (
               <div className="py-10 text-center flex flex-col items-center">
-                <span className="text-slate-400 font-medium">No hay camas con esta búsqueda.</span>
+                <span className="text-slate-400 font-medium">No hay camas con esta búsqueda en este sector.</span>
               </div>
             ) : (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 sm:gap-10">
@@ -254,32 +251,73 @@ export default function Pacientes({ doctor }) {
         </div>
       )}
 
-      {/* --- MODAL DE REGISTRO MINIMALISTA --- */}
+      {/* MODAL DE REGISTRO CON ILUSTRACIÓN TIPO UNDRAW */}
       {modalAbierto && (
         <div className="fixed inset-0 bg-[#070b14]/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-[#141824] border border-white/10 rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
-            <div className="h-28 bg-[#0a0d16] relative flex items-center justify-center border-b border-white/5 overflow-hidden shrink-0">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 blur-[40px] rounded-full"></div>
-              <svg className="w-10 h-10 text-slate-600/50 absolute" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-              <span className="text-slate-500 text-[10px] font-bold tracking-widest uppercase z-10 border border-slate-700/50 px-4 py-2 rounded-lg bg-[#0a0d16]/80 backdrop-blur-md">Espacio para Imagen</span>
+            
+            {/* Banner Superior con SVG Ilustración */}
+            <div className="h-32 sm:h-40 bg-gradient-to-br from-slate-900 to-[#0a0d16] relative flex items-center justify-center border-b border-white/5 overflow-hidden shrink-0">
+              <div className="absolute top-[-50%] right-[-10%] w-48 h-48 bg-cyan-500/20 blur-[50px] rounded-full"></div>
+              
+              <img src="/morning.svg" alt="Ilustración médica" className="h-24 sm:h-32 w-auto z-10 drop-shadow-2xl" />
             </div>
+
             <div className="p-6 sm:p-8 flex flex-col gap-5 overflow-y-auto max-h-[70vh]">
-              <div><h3 className="text-xl font-bold text-white mb-1">Registrar Ingreso</h3><p className="text-slate-400 text-xs">Asigna un diagnóstico rápido para ocupar la cama.</p></div>
+              <div>
+                <h3 className="text-xl font-bold text-white mb-1">Registrar Ingreso</h3>
+                <p className="text-slate-400 text-xs">Asigna un diagnóstico rápido para ocupar la cama.</p>
+              </div>
+
               <form onSubmit={guardarDiagnostico} className="flex flex-col gap-5">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-slate-400 ml-1">Ubicación / Cama *</label>
-                  <select value={camaSeleccionada} onChange={(e) => setCamaSeleccionada(e.target.value)} required className="w-full px-4 py-3 bg-[#0a0d16] border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors appearance-none">
+                  <select 
+                    value={camaSeleccionada} 
+                    onChange={(e) => setCamaSeleccionada(e.target.value)} 
+                    required
+                    className="w-full px-4 py-3 bg-[#0a0d16] border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors appearance-none"
+                  >
                     <option value="" disabled>Selecciona una cama vacía...</option>
-                    {camas.filter(c => !c.ocupada).map(c => <option key={c.id} value={c.id}>{c.id}</option>)}
+                    {camas.filter(c => !c.ocupada).map(c => (
+                      <option key={c.id} value={c.id}>{c.id} ({c.sector.replace('_', ' ')})</option>
+                    ))}
                   </select>
                 </div>
+
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-slate-400 ml-1">Diagnóstico de Emergencia *</label>
-                  <textarea rows="3" value={diagnosticoInput} onChange={(e) => setDiagnosticoInput(e.target.value)} required placeholder="Ej: Dolor abdominal agudo..." className="w-full px-4 py-3 bg-[#0a0d16] border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors resize-none"></textarea>
+                  <textarea 
+                    rows="3" 
+                    value={diagnosticoInput}
+                    onChange={(e) => setDiagnosticoInput(e.target.value)}
+                    required
+                    placeholder="Ej: Dolor abdominal agudo..." 
+                    className="w-full px-4 py-3 bg-[#0a0d16] border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors resize-none"
+                  ></textarea>
                 </div>
+
+                <div className="flex flex-col gap-2">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Plantillas Rápidas</span>
+                  <div className="flex flex-wrap gap-2">
+                    {plantillas.map(tag => (
+                      <button 
+                        key={tag} 
+                        type="button" 
+                        onClick={() => setDiagnosticoInput(prev => prev ? `${prev}, ${tag}` : tag)}
+                        className="px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 text-[10px] font-bold rounded-lg transition-colors"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-3 mt-2 pt-4 border-t border-white/5">
                   <button type="button" onClick={() => setModalAbierto(false)} className="px-5 py-2.5 text-slate-400 hover:text-white text-sm font-medium transition-colors">Cancelar</button>
-                  <button type="submit" disabled={guardando} className="px-6 py-2.5 bg-cyan-500 text-[#070b14] font-bold rounded-xl hover:bg-cyan-400 transition-colors text-sm disabled:opacity-50">{guardando ? 'Guardando...' : 'Asignar Cama'}</button>
+                  <button type="submit" disabled={guardando} className="px-6 py-2.5 bg-cyan-500 text-[#070b14] font-bold rounded-xl hover:bg-cyan-400 transition-colors text-sm disabled:opacity-50">
+                    {guardando ? 'Guardando...' : 'Asignar Cama'}
+                  </button>
                 </div>
               </form>
             </div>
